@@ -1,0 +1,40 @@
+<ENVELOPE>
+    <HEADER>
+        <TALLYREQUEST>Import Data</TALLYREQUEST>
+    </HEADER>
+    <BODY>
+        <IMPORTDATA>
+            <REQUESTDESC>
+                <REPORTNAME>All Masters</REPORTNAME>
+                <STATICVARIABLES>
+                    {% if targetCompany %}
+                    <SVCURRENTCOMPANY>{{ targetCompany | escape }}</SVCURRENTCOMPANY>
+                    {% endif %}
+                </STATICVARIABLES>
+            </REQUESTDESC>
+            <REQUESTDATA>
+                {% for master in masters %}
+                <TALLYMESSAGE>
+                    <ATTENDANCETYPE NAME="{{ (master._name or master.name) | escape }}" ACTION="Create">
+                        <LANGUAGENAME.LIST>
+                            <NAME.LIST>
+                                <NAME>{{ master.name | escape }}</NAME>
+                            </NAME.LIST>
+                        </LANGUAGENAME.LIST>
+                        {% if master.parent %}
+                        <PARENT>{{ master.parent | escape }}</PARENT>
+                        {% endif %}
+                        <ATTENDANCETYPE>{{ master.attendanceType | escape }}</ATTENDANCETYPE>
+                        {% if master.attendanceType == "User Defined" %}
+                        <PRODUCTIONTYPE>{{ master.productionType | escape }}</PRODUCTIONTYPE>
+                        <BASEUNITS>{{ master.unit | escape }}</BASEUNITS>
+                        {% else %}
+                        <ATTENDANCEPERIOD>{{ (master.period or "Days") | escape }}</ATTENDANCEPERIOD>
+                        {% endif %}
+                    </ATTENDANCETYPE>
+                </TALLYMESSAGE>
+                {% endfor %}
+            </REQUESTDATA>
+        </IMPORTDATA>
+    </BODY>
+</ENVELOPE>

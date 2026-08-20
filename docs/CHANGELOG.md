@@ -1,5 +1,16 @@
 # Release History
 
+### Version: v7.6 [20-Aug-2026]
+
+Added:
+* Write coverage extended to the remaining master types, so that every master which can be created from the Tally screen can now be created from the MCP client. New tools **company-create-update**, **stock-category-create-update**, **voucher-type-create-update**, **currency-create-update**, **gst-classification-create-update**, **budget-create-update** and the payroll trio **pay-head-create-update**, **employee-create-update** and **attendance-type-create-update**
+* Tool **voucher-create-update** now supports **Stock Journal** and **Manufacturing Journal** through sourceEntries (consumption) and destinationEntries (production), which Tally expects as separate inventory lists and which the earlier single inventory list could not express
+* Collection definition of **Currency**, **GSTClassification**, **AttendanceType**, **Employee** and **Budget**, making them queryable through query-collection and list-master
+
+Fixed:
+* Tool **list-master** offered collections (attendancetype, currency, gstclassification, gstin) which had no definition behind them and always answered *Invalid collection name*, while stockcategory was missing from the list despite being supported. The list is now derived from the collection definitions, so the two can no longer drift apart
+* Version reported to the MCP client was hard-coded as 7.0.0 since v7, which made it impossible to tell from the client which build was actually running. It is now read from package.json of the deployment
+
 ### Version: v7.5 [10-Aug-2026]
 
 Added:

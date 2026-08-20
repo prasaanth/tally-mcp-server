@@ -1,0 +1,58 @@
+<ENVELOPE>
+    <HEADER>
+        <TALLYREQUEST>Import Data</TALLYREQUEST>
+    </HEADER>
+    <BODY>
+        <IMPORTDATA>
+            <REQUESTDESC>
+                <REPORTNAME>All Masters</REPORTNAME>
+                <STATICVARIABLES>
+                    {% if targetCompany %}
+                    <SVCURRENTCOMPANY>{{ targetCompany | escape }}</SVCURRENTCOMPANY>
+                    {% endif %}
+                </STATICVARIABLES>
+            </REQUESTDESC>
+            <REQUESTDATA>
+                {% for master in masters %}
+                <TALLYMESSAGE>
+                    <VOUCHERTYPE NAME="{{ (master._name or master.name) | escape }}" ACTION="Create">
+                        <LANGUAGENAME.LIST>
+                            <NAME.LIST>
+                                <NAME>{{ master.name | escape }}</NAME>
+                            </NAME.LIST>
+                        </LANGUAGENAME.LIST>
+                        <PARENT>{{ master.parent | escape }}</PARENT>
+                        {% if master.numberingMethod %}
+                        <NUMBERINGMETHOD>{{ master.numberingMethod | escape }}</NUMBERINGMETHOD>
+                        {% endif %}
+                        {% if master.isOptional != undefined %}
+                        <ISOPTIONAL>{{ "Yes" if master.isOptional else "No" }}</ISOPTIONAL>
+                        {% endif %}
+                        {% if master.affectsStock != undefined %}
+                        <AFFECTSSTOCK>{{ "Yes" if master.affectsStock else "No" }}</AFFECTSSTOCK>
+                        {% endif %}
+                        {% if master.preventDuplicates != undefined %}
+                        <PREVENTDUPLICATES>{{ "Yes" if master.preventDuplicates else "No" }}</PREVENTDUPLICATES>
+                        {% endif %}
+                        {% if master.useCommonNarration != undefined %}
+                        <COMMONNARRATION>{{ "Yes" if master.useCommonNarration else "No" }}</COMMONNARRATION>
+                        {% endif %}
+                        {% if master.narrationsAtLineLevel != undefined %}
+                        <NARRATIONSATLINELEVEL>{{ "Yes" if master.narrationsAtLineLevel else "No" }}</NARRATIONSATLINELEVEL>
+                        {% endif %}
+                        {% if master.printAfterSave != undefined %}
+                        <PRINTAFTERSAVE>{{ "Yes" if master.printAfterSave else "No" }}</PRINTAFTERSAVE>
+                        {% endif %}
+                        {% if master.prefixDetails %}
+                        <PREFIXLIST.LIST>
+                            <APPLICABLEFROM>{{ master.prefixDetails.applicableFrom | formatDate("yyyyMMdd") }}</APPLICABLEFROM>
+                            <PREFIXPARTICULARS>{{ master.prefixDetails.prefix | escape }}</PREFIXPARTICULARS>
+                        </PREFIXLIST.LIST>
+                        {% endif %}
+                    </VOUCHERTYPE>
+                </TALLYMESSAGE>
+                {% endfor %}
+            </REQUESTDATA>
+        </IMPORTDATA>
+    </BODY>
+</ENVELOPE>

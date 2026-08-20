@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "tally-mcp-server",
   "display_name": "Tally Prime",
-  "version": "7.5.0",
+  "version": "7.6.0",
   "description": "Expose Tally Prime ERP data to MCP-compatible clients like Claude Desktop.",
   "author": {
     "name": "Dhananjay Gokhale",
@@ -165,11 +165,47 @@
     },
     {
       "name": "voucher-create-update",
-      "description": "creates accounting and / or inventory vouchers (transactions like payment, receipt, contra, journal, sales, purchase, debit note, credit note, delivery note, receipt note) in Tally Prime, or updates an existing voucher when its guid is supplied. amount convention is debit is negative and credit is positive, and the sum of all amounts of a voucher must be zero. quantity is always an absolute positive number, since inward or outward movement is derived by Tally from the voucher type. when guid is supplied the voucher is fully replaced by the supplied content, so send every entry of that voucher and not just the changed one. guid of an existing voucher can be picked from the output of ledger-account tool. returns count of created and / or altered records"
+      "description": "creates accounting and / or inventory vouchers (transactions like payment, receipt, contra, journal, sales, purchase, debit note, credit note, delivery note, receipt note, stock journal) in Tally Prime, or updates an existing voucher when its guid is supplied. amount convention is debit is negative and credit is positive, and the sum of all amounts of a voucher must be zero. quantity is always an absolute positive number, since inward or outward movement is derived by Tally from the voucher type. when guid is supplied the voucher is fully replaced by the supplied content, so send every entry of that voucher and not just the changed one. guid of an existing voucher can be picked from the output of ledger-account tool. returns count of created and / or altered records"
     },
     {
       "name": "voucher-delete",
       "description": "deletes vouchers (transactions) from Tally Prime permanently and returns count of deleted records. every voucher is identified by its guid, which along with date, voucher type and voucher number can be picked from the output of ledger-account tool. this operation cannot be undone, so confirm with the user before calling this tool"
+    },
+    {
+      "name": "company-create-update",
+      "description": "creates a new company in Tally Prime or updates details of an existing one, returns count of created and / or altered records. note that company creation over the XML interface is dependent on the Tally Prime edition and its security settings, so if this is rejected the company has to be created from the Tally screen (Company > Create) and can then be updated by this tool"
+    },
+    {
+      "name": "stock-category-create-update",
+      "description": "create or update stock category, which is a parallel classification of stock items cutting across stock groups, returns count of created and / or altered records"
+    },
+    {
+      "name": "voucher-type-create-update",
+      "description": "create or update a voucher type in Tally Prime, which is always derived from one of the predefined voucher types like Sales, Purchase, Payment, Receipt, Journal, Contra, Stock Journal, returns count of created and / or altered records"
+    },
+    {
+      "name": "currency-create-update",
+      "description": "create or update a currency in Tally Prime, used for recording transactions in a foreign currency, returns count of created and / or altered records"
+    },
+    {
+      "name": "gst-classification-create-update",
+      "description": "create or update a GST classification, which is a reusable set of HSN / SAC and GST rate details that can be applied on many stock items and ledgers at once, returns count of created and / or altered records"
+    },
+    {
+      "name": "budget-create-update",
+      "description": "create or update a budget in Tally Prime for a period, with closing balance targets against groups, ledgers and cost centres. amount convention is debit is negative and credit is positive, so an expense budget is a negative amount. returns count of created and / or altered records"
+    },
+    {
+      "name": "pay-head-create-update",
+      "description": "create or update a payroll pay head in Tally Prime, which is the earning, deduction or contribution component used while processing salary. a pay head is internally a ledger, so it also appears in list-master with collection as ledger. returns count of created and / or altered records"
+    },
+    {
+      "name": "employee-create-update",
+      "description": "create or update a payroll employee or employee group in Tally Prime. Tally stores an employee as a cost centre flagged for payroll, so employees also appear in list-master with collection as costcentre. returns count of created and / or altered records"
+    },
+    {
+      "name": "attendance-type-create-update",
+      "description": "create or update a payroll attendance, leave or production type in Tally Prime like Present, Absent, Overtime or Piece Production, returns count of created and / or altered records"
     }
   ],
   "tools_generated": false,

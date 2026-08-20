@@ -1,0 +1,61 @@
+<ENVELOPE>
+    <HEADER>
+        <TALLYREQUEST>Import Data</TALLYREQUEST>
+    </HEADER>
+    <BODY>
+        <IMPORTDATA>
+            <REQUESTDESC>
+                <REPORTNAME>All Masters</REPORTNAME>
+            </REQUESTDESC>
+            <REQUESTDATA>
+                {% for master in masters %}
+                <TALLYMESSAGE>
+                    <COMPANY NAME="{{ (master._name or master.name) | escape }}" ACTION="Create">
+                        <NAME>{{ master.name | escape }}</NAME>
+                        <ISUPDATINGTARGETID>No</ISUPDATINGTARGETID>
+                        {% if master.mailingName != undefined %}
+                        <MAILINGNAME>{{ master.mailingName | escape }}</MAILINGNAME>
+                        {% endif %}
+                        {% if master.address %}
+                        <ADDRESS.LIST TYPE="String">
+                            {% for line in master.address %}
+                            <ADDRESS>{{ line | escape }}</ADDRESS>
+                            {% endfor %}
+                        </ADDRESS.LIST>
+                        {% endif %}
+                        <COUNTRYNAME>{{ master.country | escape }}</COUNTRYNAME>
+                        <STATENAME>{{ master.state | escape }}</STATENAME>
+                        {% if master.pincode != undefined %}
+                        <PINCODE>{{ master.pincode | escape }}</PINCODE>
+                        {% endif %}
+                        {% if master.phoneNumber != undefined %}
+                        <PHONENUMBER>{{ master.phoneNumber | escape }}</PHONENUMBER>
+                        {% endif %}
+                        {% if master.email != undefined %}
+                        <EMAIL>{{ master.email | escape }}</EMAIL>
+                        {% endif %}
+                        <STARTINGFROM>{{ master.booksFrom | formatDate("yyyyMMdd") }}</STARTINGFROM>
+                        <BOOKSFROM>{{ master.booksFrom | formatDate("yyyyMMdd") }}</BOOKSFROM>
+                        <ISINVENTORYON>{{ "Yes" if master.isInventory else "No" }}</ISINVENTORYON>
+                        <ISACCOUNTINGON>Yes</ISACCOUNTINGON>
+                        {% if master.currencySymbol != undefined %}
+                        <BASECURRENCYSYMBOL>{{ master.currencySymbol | escape }}</BASECURRENCYSYMBOL>
+                        <FORMALNAME>{{ master.currencyFormalName | escape }}</FORMALNAME>
+                        <ISSUFFIXEDTOVALUE>No</ISSUFFIXEDTOVALUE>
+                        <HASSPACEBETWEENAMOUNT>Yes</HASSPACEBETWEENAMOUNT>
+                        <DECIMALPLACES>2</DECIMALPLACES>
+                        <DECIMALPLACESFORPRINTING>2</DECIMALPLACESFORPRINTING>
+                        {% endif %}
+                        {% if master.gstin != undefined %}
+                        <GSTREGNUMBER>{{ master.gstin | escape }}</GSTREGNUMBER>
+                        {% endif %}
+                        {% if master.incomeTaxNumber != undefined %}
+                        <INCOMETAXNUMBER>{{ master.incomeTaxNumber | escape }}</INCOMETAXNUMBER>
+                        {% endif %}
+                    </COMPANY>
+                </TALLYMESSAGE>
+                {% endfor %}
+            </REQUESTDATA>
+        </IMPORTDATA>
+    </BODY>
+</ENVELOPE>

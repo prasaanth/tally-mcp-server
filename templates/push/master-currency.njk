@@ -1,0 +1,49 @@
+<ENVELOPE>
+    <HEADER>
+        <TALLYREQUEST>Import Data</TALLYREQUEST>
+    </HEADER>
+    <BODY>
+        <IMPORTDATA>
+            <REQUESTDESC>
+                <REPORTNAME>All Masters</REPORTNAME>
+                <STATICVARIABLES>
+                    {% if targetCompany %}
+                    <SVCURRENTCOMPANY>{{ targetCompany | escape }}</SVCURRENTCOMPANY>
+                    {% endif %}
+                </STATICVARIABLES>
+            </REQUESTDESC>
+            <REQUESTDATA>
+                {% for master in masters %}
+                <TALLYMESSAGE>
+                    <CURRENCY NAME="{{ (master._name or master.name) | escape }}" ACTION="Create">
+                        <NAME>{{ master.name | escape }}</NAME>
+                        <ORIGINALNAME>{{ master.name | escape }}</ORIGINALNAME>
+                        {% if master.formalName != undefined %}
+                        <MAILINGNAME>{{ master.formalName | escape }}</MAILINGNAME>
+                        {% endif %}
+                        {% if master.expandedSymbol != undefined %}
+                        <EXPANDEDSYMBOL>{{ master.expandedSymbol | escape }}</EXPANDEDSYMBOL>
+                        {% endif %}
+                        {% if master.decimalSymbol != undefined %}
+                        <DECIMALSYMBOL>{{ master.decimalSymbol | escape }}</DECIMALSYMBOL>
+                        {% endif %}
+                        {% if master.decimalPlaces != undefined %}
+                        <DECIMALPLACES>{{ master.decimalPlaces }}</DECIMALPLACES>
+                        <DECIMALPLACESFORPRINTING>{{ master.decimalPlaces }}</DECIMALPLACESFORPRINTING>
+                        {% endif %}
+                        {% if master.isSymbolSuffixed != undefined %}
+                        <ISSUFFIXEDTOVALUE>{{ "Yes" if master.isSymbolSuffixed else "No" }}</ISSUFFIXEDTOVALUE>
+                        {% endif %}
+                        {% if master.hasSpaceBetweenAmount != undefined %}
+                        <HASSPACEBETWEENAMOUNT>{{ "Yes" if master.hasSpaceBetweenAmount else "No" }}</HASSPACEBETWEENAMOUNT>
+                        {% endif %}
+                        {% if master.showInMillions != undefined %}
+                        <SHOWINMILLIONS>{{ "Yes" if master.showInMillions else "No" }}</SHOWINMILLIONS>
+                        {% endif %}
+                    </CURRENCY>
+                </TALLYMESSAGE>
+                {% endfor %}
+            </REQUESTDATA>
+        </IMPORTDATA>
+    </BODY>
+</ENVELOPE>

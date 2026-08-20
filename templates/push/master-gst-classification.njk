@@ -1,0 +1,63 @@
+<ENVELOPE>
+    <HEADER>
+        <TALLYREQUEST>Import Data</TALLYREQUEST>
+    </HEADER>
+    <BODY>
+        <IMPORTDATA>
+            <REQUESTDESC>
+                <REPORTNAME>All Masters</REPORTNAME>
+                <STATICVARIABLES>
+                    {% if targetCompany %}
+                    <SVCURRENTCOMPANY>{{ targetCompany | escape }}</SVCURRENTCOMPANY>
+                    {% endif %}
+                </STATICVARIABLES>
+            </REQUESTDESC>
+            <REQUESTDATA>
+                {% for master in masters %}
+                <TALLYMESSAGE>
+                    <GSTCLASSIFICATION NAME="{{ (master._name or master.name) | escape }}" ACTION="Create">
+                        <LANGUAGENAME.LIST>
+                            <NAME.LIST>
+                                <NAME>{{ master.name | escape }}</NAME>
+                            </NAME.LIST>
+                        </LANGUAGENAME.LIST>
+                        <GSTDETAILS.LIST>
+                            <APPLICABLEFROM>{{ master.applicableFrom | formatDate("yyyyMMdd") }}</APPLICABLEFROM>
+                            {% if master.hsnCode != undefined %}
+                            <HSNCODE>{{ master.hsnCode | escape }}</HSNCODE>
+                            <HSNDESCRIPTION>{{ master.hsnDescription | escape }}</HSNDESCRIPTION>
+                            <SRCOFHSNDETAILS>Specify Details Here</SRCOFHSNDETAILS>
+                            {% endif %}
+                            <SRCOFGSTDETAILS>Specify Details Here</SRCOFGSTDETAILS>
+                            <TAXABILITY>{{ master.taxability | escape }}</TAXABILITY>
+                            <TYPEOFSUPPLY>{{ master.typeOfSupply | escape }}</TYPEOFSUPPLY>
+                            <STATEWISEDETAILS.LIST>
+                                <STATENAME>&#4; Any</STATENAME>
+                                <RATEDETAILS.LIST>
+                                    <GSTRATEDUTYHEAD>CGST</GSTRATEDUTYHEAD>
+                                    <GSTRATEVALUATIONTYPE>Based on Value</GSTRATEVALUATIONTYPE>
+                                    <GSTRATE>{{ master.cgstRate }}</GSTRATE>
+                                </RATEDETAILS.LIST>
+                                <RATEDETAILS.LIST>
+                                    <GSTRATEDUTYHEAD>SGST/UTGST</GSTRATEDUTYHEAD>
+                                    <GSTRATEVALUATIONTYPE>Based on Value</GSTRATEVALUATIONTYPE>
+                                    <GSTRATE>{{ master.sgstRate }}</GSTRATE>
+                                </RATEDETAILS.LIST>
+                                <RATEDETAILS.LIST>
+                                    <GSTRATEDUTYHEAD>IGST</GSTRATEDUTYHEAD>
+                                    <GSTRATEVALUATIONTYPE>Based on Value</GSTRATEVALUATIONTYPE>
+                                    <GSTRATE>{{ master.igstRate }}</GSTRATE>
+                                </RATEDETAILS.LIST>
+                                <RATEDETAILS.LIST>
+                                    <GSTRATEDUTYHEAD>Cess</GSTRATEDUTYHEAD>
+                                    <GSTRATEVALUATIONTYPE>&#4; Not Applicable</GSTRATEVALUATIONTYPE>
+                                </RATEDETAILS.LIST>
+                            </STATEWISEDETAILS.LIST>
+                        </GSTDETAILS.LIST>
+                    </GSTCLASSIFICATION>
+                </TALLYMESSAGE>
+                {% endfor %}
+            </REQUESTDATA>
+        </IMPORTDATA>
+    </BODY>
+</ENVELOPE>
