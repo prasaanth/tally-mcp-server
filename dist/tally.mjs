@@ -2,7 +2,7 @@ import http from 'node:http';
 import nunjucks from 'nunjucks';
 import { XMLParser } from 'fast-xml-parser';
 import { utility } from './utility.mjs';
-import { lstCollectionFields, lstPushXml, lstReportConfig, lstReportXml, xmlInvokeAction, xmlQueryCollection, xmlDeleteMasters } from './definition.mjs';
+import { lstCollectionFields, lstPushXml, lstReportConfig, lstReportXml, xmlInvokeAction, xmlQueryCollection, xmlDeleteMasters, xmlDeleteVouchers } from './definition.mjs';
 const tally_port = parseInt(process.env.TALLY_PORT || '9000'); // default to 9000 XML port of Tally
 const tally_host = process.env.TALLY_HOST || 'localhost'; // default to localhost
 const lstPullReport = lstReportConfig;
@@ -155,33 +155,96 @@ export async function invokeTallyAction(targetAction, lstParameters) {
         throw err;
     }
 }
-export async function importMasters(targetMaster, objMasterInput) {
+/**
+ * Parses the XML response returned by Tally for any Import Data request and normalises
+ * it into a status object. Tally reports failures inside the RESPONSE envelope itself
+ * (LINEERROR / EXCEPTIONS), so those are surfaced as an error instead of a silent zero count.
+ */
+function parseImportResponse(respContent) {
+    if (!respContent)
+        throw new Error('Empty response received from Tally');
+    if (respContent.startsWith('<EXCEPTION>')) {
+        let errorMessage = respContent.replace(/<\/?EXCEPTION>/g, '').trim();
+        throw new Error(errorMessage || 'Unknown error received from Tally');
+    }
+    const xmlParser = new XMLParser({ parseTagValue: false });
+    let resultObj = xmlParser.parse(respContent);
+    let objResponse = resultObj['RESPONSE'];
+    if (!objResponse)
+        throw new Error(utility.String.unescapeHTML(respContent).substring(0, 500));
+    let lineError = objResponse['LINEERROR'];
+    if (lineError)
+        throw new Error(utility.String.unescapeHTML(Array.isArray(lineError) ? lineError.join(' | ') : lineError.toString()));
+    const parseCount = (value) => {
+        let parsedValue = parseInt(value);
+        return isNaN(parsedValue) ? 0 : parsedValue;
+    };
+    let retval = {
+        created: parseCount(objResponse['CREATED']),
+        altered: parseCount(objResponse['ALTERED']),
+        deleted: parseCount(objResponse['DELETED']),
+        combined: parseCount(objResponse['COMBINED']),
+        ignored: parseCount(objResponse['IGNORED']),
+        cancelled: parseCount(objResponse['CANCELLED']),
+        errors: parseCount(objResponse['ERRORS']),
+        exceptions: parseCount(objResponse['EXCEPTIONS'])
+    };
+    if (retval.errors || retval.exceptions)
+        throw new Error(`Tally rejected the request with ${retval.errors} error(s) and ${retval.exceptions} exception(s). Kindly validate master names, dates and amounts before retrying`);
+    return retval;
+}
+/**
+ * Renders one of the push XML templates and posts it to Tally as an Import Data request
+ * @param targetTemplate key of the template registered in lstPushXml
+ * @param objInput template arguments
+ */
+export async function importData(targetTemplate, objInput) {
     try {
-        let xmlTemplate = lstPushXml.get(targetMaster) || '';
-        let respContent = await sendTallyXml(xmlTemplate, objMasterInput); //send XML to Tally and get response
-        const xmlParser = new XMLParser();
-        let resultObj = xmlParser.parse(respContent);
-        let retval = resultObj['RESPONSE'];
-        return retval;
+        let xmlTemplate = lstPushXml.get(targetTemplate);
+        if (!xmlTemplate)
+            throw new Error(`No import template found for ${targetTemplate}`);
+        let respContent = await sendTallyXml(xmlTemplate, objInput); //send XML to Tally and get response
+        return parseImportResponse(respContent);
     }
     catch (err) {
         throw err;
     }
 }
+export async function importMasters(targetMaster, objMasterInput) {
+    return importData(targetMaster, objMasterInput);
+}
+export async function importVouchers(lstVoucher, targetCompany) {
+    let objTemplateArgs = new Map();
+    objTemplateArgs.set('vouchers', lstVoucher);
+    if (targetCompany) {
+        objTemplateArgs.set('targetCompany', targetCompany);
+    }
+    return importData('voucher', objTemplateArgs);
+}
 export async function deleteMasters(targetCollection, lstMaster, targetCompany) {
     try {
-        let xmlTemplate = xmlDeleteMasters;
         let objTemplateArgs = new Map();
         objTemplateArgs.set('targetCollection', targetCollection);
         objTemplateArgs.set('masters', lstMaster);
         if (targetCompany) {
             objTemplateArgs.set('targetCompany', targetCompany);
         }
-        let respContent = await sendTallyXml(xmlTemplate, objTemplateArgs);
-        const xmlParser = new XMLParser();
-        let resultObj = xmlParser.parse(respContent);
-        let retval = resultObj['RESPONSE'];
-        return retval;
+        let respContent = await sendTallyXml(xmlDeleteMasters, objTemplateArgs);
+        return parseImportResponse(respContent);
+    }
+    catch (err) {
+        throw err;
+    }
+}
+export async function deleteVouchers(lstVoucher, targetCompany) {
+    try {
+        let objTemplateArgs = new Map();
+        objTemplateArgs.set('vouchers', lstVoucher);
+        if (targetCompany) {
+            objTemplateArgs.set('targetCompany', targetCompany);
+        }
+        let respContent = await sendTallyXml(xmlDeleteVouchers, objTemplateArgs);
+        return parseImportResponse(respContent);
     }
     catch (err) {
         throw err;

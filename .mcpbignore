@@ -1,0 +1,27 @@
+# sources & build inputs (only the compiled dist is shipped).
+# every pattern is anchored with a leading slash, so that look-alike folders
+# inside node_modules (e.g. fast-xml-parser/src) are not stripped away
+/src/
+/templates/
+/docs/
+/.vscode/
+/.git/
+/.github/
+/tsconfig.json
+/package-lock.json
+/.gitignore
+/.mcpbignore
+/.env
+/authorize.html
+
+# source maps are not needed at runtime
+/dist/*.mjs.map
+
+# dev-only dependencies
+/node_modules/typescript/
+/node_modules/@types/
+/node_modules/.bin/tsc
+/node_modules/.bin/tsserver
+
+# packaged output
+*.mcpb

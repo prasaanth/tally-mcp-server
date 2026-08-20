@@ -61,5 +61,39 @@ export interface CreateUpdateDeleteStatus {
     combined?: number;
     ignored?: number;
     cancelled?: number;
+    errors?: number;
     exceptions?: number;
+}
+
+export interface TallyVoucherLedgerEntry {
+    ledgerName: string;
+    amount: number;
+    billAllocations?: any[];
+    costCentreAllocations?: any[];
+}
+
+export interface TallyVoucherInventoryEntry {
+    stockItemName: string;
+    quantity: number;
+    amount: number;
+    rate?: number;
+    unit?: string;
+    godownName?: string;
+    batchName?: string;
+    accountingLedger?: string;
+}
+
+export interface TallyVoucher {
+    guid?: string;
+    date: Date;
+    voucherType: string;
+    voucherNumber?: string;
+    reference?: string;
+    referenceDate?: Date;
+    partyLedgerName?: string;
+    narration?: string;
+    isInvoice?: boolean;
+    objectView: string;
+    ledgerEntries: TallyVoucherLedgerEntry[];
+    inventoryEntries?: TallyVoucherInventoryEntry[];
 }

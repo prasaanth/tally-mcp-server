@@ -110,7 +110,7 @@ This mode of setup is to be used, when using browser-based MCP client like ChatG
 
 ## Available Tools
 
-This server currently exposes 19 MCP tools.
+This server currently exposes 29 MCP tools. Tools that write back into Tally Prime (create / update / delete of masters and vouchers) can be hidden altogether via the `BLOCK_WRITE` setting described under Environment Variables.
 
 ### metadata-collection
 Returns metadata for supported collections.
@@ -389,7 +389,11 @@ Master ledger object accepts following
 |openingBalance|(optional) Opening Balance of the Ledger|
 |isBillWise|(optional) flag to set Bill-by-Bill referencing|
 |billCreditPeriod|(optional) Credit Period for bill in days|
-|mailingDetails|(optional) Business Name for mailing purpose, country, state, pincode, address|
+|isCostCentre|(optional) flag to enable cost centre allocation while passing vouchers with this ledger|
+|email|(optional) Email address of the ledger|
+|mobileNumber|(optional) Contact or mobile number of the ledger|
+|bankDetails|(optional) Bank details containing `accountNumber`, `ifscCode`, `bankName` and `accountHolderName`|
+|mailingDetails|(optional) Business Name for mailing purpose, country, state, pincode and `address` (array of address lines)|
 |gstRegistrationDetails|(optional) GST registration details like GST Number, Registration Type, Place of Supply (state)|
 
 **Output**
@@ -407,6 +411,184 @@ Delete one (or more) masters from Tally
 
 **Output**
 JSON result returned by delete operation (count of deleted, skipped, etc).
+
+### group-create-update
+Create or update accounting group(s), i.e. the chart of accounts node under which ledgers are nested.
+
+**Input**
+|Argument|Description|
+|--|--|
+|targetCompany (optional)|Company name (defaults to active company)|
+|masters|Array of group objects|
+
+Every object of `masters` supports:
+|Property|Description|
+|--|--|
+|name|Group name, or the new name when renaming|
+|_name (optional)|Existing group name to modify / rename|
+|parent (optional)|Parent group name. Skip it to create a primary group|
+|isSubLedger (optional)|Group behaves like a sub-ledger|
+|isNettBalance (optional)|Nett debit / credit balances of the group while reporting|
+|isCostCentre (optional)|Cost centres applicable for ledgers of this group|
+
+**Output**
+JSON result returned by import operation (count of created / altered records).
+
+### stock-group-create-update
+Create or update stock group(s) under which stock items are nested.
+
+**Input**
+|Argument|Description|
+|--|--|
+|targetCompany (optional)|Company name (defaults to active company)|
+|masters|Array of stock group objects with properties `name`, `_name` (optional), `parent` (optional), `isQuantityAddable` (optional)|
+
+**Output**
+JSON result returned by import operation (count of created / altered records).
+
+### unit-create-update
+Create or update unit(s) of measurement. Supports a simple unit (like `Nos`, `Kgs`) and a compound unit (like `Box of 12 Nos`).
+
+**Input**
+|Argument|Description|
+|--|--|
+|targetCompany (optional)|Company name (defaults to active company)|
+|masters|Array of unit objects|
+
+Every object of `masters` supports:
+|Property|Description|
+|--|--|
+|name|Symbol of the unit like `Nos`, `Kgs`. Tally derives the name of a compound unit on its own|
+|_name (optional)|Existing unit name to modify / rename|
+|formalName (optional)|Full name of a simple unit like `Numbers` for `Nos`|
+|decimalPlaces (optional)|Decimal places allowed for quantity of a simple unit (0 to 4)|
+|baseUnit / additionalUnit / conversion|Specify all 3 together to create a compound unit. `conversion` is the count of base units in one additional unit|
+
+**Output**
+JSON result returned by import operation (count of created / altered records).
+
+### godown-create-update
+Create or update godown(s) or warehouse(s) where stock is stored.
+
+**Input**
+|Argument|Description|
+|--|--|
+|targetCompany (optional)|Company name (defaults to active company)|
+|masters|Array of godown objects with properties `name`, `_name` (optional), `parent` (optional), `address` (optional array of address lines), `isExternal` (optional)|
+
+**Output**
+JSON result returned by import operation (count of created / altered records).
+
+### cost-category-create-update
+Create or update cost category(ies) used to group cost centres for parallel allocation.
+
+**Input**
+|Argument|Description|
+|--|--|
+|targetCompany (optional)|Company name (defaults to active company)|
+|masters|Array of cost category objects with properties `name`, `_name` (optional), `allocateRevenue` (optional), `allocateNonRevenue` (optional)|
+
+**Output**
+JSON result returned by import operation (count of created / altered records).
+
+### cost-centre-create-update
+Create or update cost centre(s) or profit centre(s) used to track income and expenses of a department, branch, project or employee.
+
+**Input**
+|Argument|Description|
+|--|--|
+|targetCompany (optional)|Company name (defaults to active company)|
+|masters|Array of cost centre objects with properties `name`, `_name` (optional), `category` (optional, default `Primary Cost Category`), `parent` (optional)|
+
+**Output**
+JSON result returned by import operation (count of created / altered records).
+
+### stock-item-create-update
+Create or update stock item(s), i.e. the product or material forming part of inventory.
+
+**Input**
+|Argument|Description|
+|--|--|
+|targetCompany (optional)|Company name (defaults to active company)|
+|masters|Array of stock item objects|
+
+Every object of `masters` supports:
+|Property|Description|
+|--|--|
+|name|Stock item name, or the new name when renaming|
+|_name (optional)|Existing stock item name to modify / rename|
+|parent (optional)|Stock group under which the item is nested|
+|category (optional)|Stock category. Blank value resets it to Not Applicable|
+|unit (optional)|Base unit of measurement|
+|alternateUnit / conversion (optional)|Alternate unit and the count of base units contained in it|
+|description (optional)|Description or remarks|
+|costingMethod (optional)|Method of valuation of stock like `Avg. Cost`, `FIFO`, `Std. Cost`|
+|isBatchWise (optional)|Maintain the item batch wise|
+|openingQuantity / openingRate / openingValue (optional)|Opening stock as on books begin date|
+|gstDetails (optional)|`hsnCode`, `hsnDescription`, `typeOfSupply` (`Goods` / `Services`), `taxability` (`Taxable` / `Exempt` / `Nil Rated`) and `rate` (total GST rate, split internally into CGST, SGST and IGST)|
+
+**Output**
+JSON result returned by import operation (count of created / altered records).
+
+### voucher-create-update
+Create accounting and / or inventory vouchers (transactions like Payment, Receipt, Contra, Journal, Sales, Purchase, Credit Note, Debit Note, Delivery Note, Receipt Note), or update an existing voucher when its `guid` is supplied.
+
+Sign convention followed across the whole tool is **debit is negative and credit is positive**, and the sum of all amounts of a voucher must be **0**. Quantity is always an absolute positive number, since inward or outward movement is derived by Tally from the voucher type. Ledger, voucher type and stock item names are validated against Tally before the voucher is pushed, so a typo is reported back instead of being partially imported.
+
+**Input**
+|Argument|Description|
+|--|--|
+|targetCompany (optional)|Company name (defaults to active company)|
+|vouchers|Array of voucher objects|
+
+Every object of `vouchers` supports:
+|Property|Description|
+|--|--|
+|guid (optional)|Guid of an existing voucher to update it (available in the output of `ledger-account`). Skip it to create a new voucher. On update the voucher is fully replaced by the supplied content|
+|date|Voucher date in YYYY-MM-DD|
+|voucherType|Voucher type name. Validate it using `list-master` with collection as `vouchertype`|
+|voucherNumber (optional)|Skip it to let Tally auto-number the voucher|
+|reference / referenceDate (optional)|Reference like a purchase order or supplier invoice number and its date|
+|partyLedgerName (optional)|Party ledger of the voucher|
+|narration (optional)|Narration or remarks|
+|objectView (optional)|One of `Accounting Voucher View`, `Invoice Voucher View`, `Inventory Voucher View`. Derived automatically when skipped|
+|ledgerEntries|Accounting entries. Empty array only for a pure inventory voucher like Delivery Note|
+|inventoryEntries (optional)|Inventory entries for an inventory affecting voucher type|
+
+Every object of `ledgerEntries` supports:
+|Property|Description|
+|--|--|
+|ledgerName|Ledger name of the entry|
+|amount|Debit is negative and credit is positive|
+|billAllocations (optional)|Array of `name`, `billType` (`New Ref`, `Agst Ref`, `Advance`, `On Account`), `amount` and optional `creditPeriod`. Mandatory for a ledger on which bill wise details is enabled. Total must match the amount of the ledger entry|
+|costCentreAllocations (optional)|Array of `costCategory` (optional), `costCentre` and `amount`. Total must match the amount of the ledger entry|
+
+Every object of `inventoryEntries` supports:
+|Property|Description|
+|--|--|
+|stockItemName|Stock item name|
+|quantity|Absolute positive quantity|
+|rate (optional)|Rate per unit|
+|unit (optional)|Unit of measurement of quantity and rate|
+|amount|Value of the entry. Debit is negative (inward) and credit is positive (outward)|
+|godownName (optional)|Godown from / into which stock moves|
+|batchName (optional)|Batch name for a batch wise stock item|
+|accountingLedger (optional)|Sales / purchase / stock adjustment ledger to which the value is posted. Mandatory for an invoice like Sales or Purchase|
+
+**Output**
+JSON result returned by import operation (count of created / altered records).
+
+### voucher-delete
+Delete one (or more) vouchers from Tally permanently. This operation cannot be undone.
+
+**Input**
+|Argument|Description|
+|--|--|
+|targetCompany (optional)|Company name (defaults to active company)|
+|vouchers|Array of objects containing `guid`, `date`, `voucherType` and optional `voucherNumber`. All of these are available in the output of `ledger-account` tool|
+
+**Output**
+JSON result returned by delete operation (count of deleted records).
 
 ### set-company
 Sets active company context in Tally Prime.
@@ -439,7 +621,7 @@ End-users are free to hard-code few settings which needs to be applied
 |--|--|
 |TALLY_PORT|Port Number of XML Server of Tally (*optional*, default is **9000**)|
 |TALLY_HOST|Host name or IP where XML Server is running (*optional*, default is **localhost**)|
-|BLOCK_WRITE|Controls if MCP completely block access of write functionality. Setting this flag to value **1** will completely hide write functionality tools from the tool list. [ **0 = Allow , 1 = Block** ] (optional, default is **0** i.e. allowed). Not applicable for Claude Desktop (as it offers graphical switch to disable write functionality)|
+|BLOCK_WRITE|Controls if MCP completely blocks access of write functionality. Setting this flag to **1** (or **true** / **yes**) will completely hide write functionality tools (create / update / delete of masters and vouchers) from the tool list. [ **0 = Allow , 1 = Block** ] (optional, default is **0** i.e. allowed). For Claude Desktop this is exposed as the **Block Write Access** switch of the extension settings|
 |PORT|Tally MCP Server port number. Applicable only if Tally Prime MCP Server is deployed as Remote MCP server (*optional*, default is **3000**). Not applicable for Claude Desktop|
 |MCP_DOMAIN|Domain name of Tally MCP Server website (*optional*, default is https://localhost:9000). Not applicable for Claude Desktop|
 |PASSWORD|Password for the OAuth Login front-end page to authenticate genuine user (kindly set this to some complex password default is **password**). Not applicable for Claude Desktop|

@@ -1,0 +1,42 @@
+<ENVELOPE>
+    <HEADER>
+        <TALLYREQUEST>Import Data</TALLYREQUEST>
+    </HEADER>
+    <BODY>
+        <IMPORTDATA>
+            <REQUESTDESC>
+                <REPORTNAME>All Masters</REPORTNAME>
+                <STATICVARIABLES>
+                    {% if targetCompany %}
+                    <SVCURRENTCOMPANY>{{ targetCompany | escape }}</SVCURRENTCOMPANY>
+                    {% endif %}
+                </STATICVARIABLES>
+            </REQUESTDESC>
+            <REQUESTDATA>
+                {% for master in masters %}
+                <TALLYMESSAGE>
+                    <GROUP NAME="{{ (master._name or master.name) | escape }}" ACTION="Create">
+                        <LANGUAGENAME.LIST>
+                            <NAME.LIST>
+                                <NAME>{{ master.name | escape }}</NAME>
+                            </NAME.LIST>
+                        </LANGUAGENAME.LIST>
+                        {% if master.parent %}
+                        <PARENT>{{ master.parent | escape }}</PARENT>
+                        {% endif %}
+                        {% if master.isSubLedger != undefined %}
+                        <ISSUBLEDGER>{{ "Yes" if master.isSubLedger else "No" }}</ISSUBLEDGER>
+                        {% endif %}
+                        {% if master.isNettBalance != undefined %}
+                        <ISADDABLE>{{ "Yes" if master.isNettBalance else "No" }}</ISADDABLE>
+                        {% endif %}
+                        {% if master.isCostCentre != undefined %}
+                        <ISCOSTCENTRESON>{{ "Yes" if master.isCostCentre else "No" }}</ISCOSTCENTRESON>
+                        {% endif %}
+                    </GROUP>
+                </TALLYMESSAGE>
+                {% endfor %}
+            </REQUESTDATA>
+        </IMPORTDATA>
+    </BODY>
+</ENVELOPE>

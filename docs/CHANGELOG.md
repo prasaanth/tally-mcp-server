@@ -3,11 +3,20 @@
 ### Version: v7.5 [10-Aug-2026]
 
 Added:
+* **Write-back to Tally** extended well beyond ledger creation. New tools **group-create-update**, **stock-group-create-update**, **stock-item-create-update**, **unit-create-update**, **godown-create-update**, **cost-category-create-update** and **cost-centre-create-update** cover the remaining master types, while **voucher-create-update** and **voucher-delete** allow transactions (payment, receipt, contra, journal, sales, purchase, credit note, debit note, delivery note, receipt note) to be created, altered and deleted. Voucher input supports bill wise allocation, cost centre allocation, godown and batch allocation and invoice style accounting allocation of inventory
+* Tool **ledger-create-update** now accepts email, mobile number, bank details (account number / IFSC), cost centre applicability and a multi-line mailing address
+* Collection definition of **CostCategory** and **CostCentre**, which makes them queryable through query-collection and list-master tools
 * Add many fields into collection definition to make query-collection even more robust
 * Introduced feature of blocking access to Write functionality tool as discussed in [#26](https://github.com/dhananjay1405/tally-mcp-server/issues/26) by introduction of environment variable BLOCK_WRITE
 * MCP was unable to connect to tally running of PC other than local, as localhost was hard-coded in Tally Host setting. Based on suggestion for improvement in [#25](https://github.com/dhananjay1405/tally-mcp-server/issues/25) environment variable TALLY_HOST was introduced to allow setting of IP address to connect Tally running on different computer
 
 Fixed:
+* Failures reported by Tally during an import (LINEERROR / ERRORS / EXCEPTIONS inside the response envelope) were being swallowed and reported as a success with zero counts. These are now surfaced back with the exact message returned by Tally
+* Tool errors were serialized using JSON.stringify on an Error instance, which produced an empty object hiding the reason of failure. Errors now carry a readable message
+* GSTIN of ledger-create-update was validated against a date pattern, due to which GST registration details could never be pushed. Mailing address supplied to the same tool was silently dropped as the XML template never emitted it
+* Master name supplied for renaming was not being XML escaped, breaking the request when the name carried characters like &amp;
+* Names of masters referred by a voucher are validated (case-insensitively) against Tally before the write is attempted, and vouchers which do not balance or whose bill / cost centre allocations do not add up are rejected upfront with a precise message instead of being partially imported
+* Environment variable BLOCK_WRITE now accepts **true** and **yes** apart from **1**, and is exposed as the *Block Write Access* switch of the Claude Desktop extension
 * House-keeping task like upgrading of depedencies (node packages)
 * Improvement in the documentation
 
