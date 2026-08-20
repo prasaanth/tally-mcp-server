@@ -26,7 +26,8 @@
       ],
       "env": {
         "TALLY_PORT": "${user_config.TALLY_PORT}",
-        "TALLY_HOST": "${user_config.TALLY_HOST}"
+        "TALLY_HOST": "${user_config.TALLY_HOST}",
+        "BLOCK_WRITE": "${user_config.BLOCK_WRITE}"
       }
     }
   },
@@ -44,6 +45,13 @@
       "description": "Host name or IP address for Tally XML server",
       "required": false,
       "default": "localhost"
+    },
+    "BLOCK_WRITE": {
+      "type": "boolean",
+      "title": "Block Write Access",
+      "description": "Turn this on to expose only read-only tools. Leave it off to allow creating, updating and deleting masters and vouchers in Tally Prime",
+      "required": false,
+      "default": false
     }
   },
   "tools": [
@@ -112,16 +120,56 @@
       "description": "fetches GL stock item account statement with voucher level details containing fields date, voucher_type, voucher_number, party_name, quantity, amount, narration, tracking_number, voucher_category. party_name = ledger_name. quantity = inward as positive and outward as negative. amount = debit is negative and credit is positive, narration = notes / remarks. for calculating closing balance of quantity, consider rows with tracking_number as empty as it is, but for rows with tracking_number having text value, then duplicate rows need to be removed by preparing intermediate output with aggregation of tracking_number and voucher_category with sum of quantity and then comparing quantity of Receipt Note with Purchase and Delivery Note with Sales to identify and remove the rows with Receipt Note and Delivery Note if they are found to be tracked fully / partially . returns output cached in pglite postgres in-memory table (specified in tableID property). Use query-database tool to run SQL queries against that table for further analysis"
     },
     {
-      "name": "ledger-create-update",
-      "description": "create or update ledger master data in Tally Prime, returns success count of created and / or altered records"
-    },
-    {
       "name": "set-company",
       "description": "sets the active company context in Tally Prime. This changes the global company context used by Tally for subsequent operations and report queries"
     },
     {
       "name": "set-period",
       "description": "sets the active reporting period in Tally Prime by specifying a from date and to date. This changes the global period context used by Tally for subsequent report queries"
+    },
+    {
+      "name": "ledger-create-update",
+      "description": "create or update ledger master data in Tally Prime, returns success count of created and / or altered records"
+    },
+    {
+      "name": "delete-master",
+      "description": "deletes a master object from selected collection in Tally Prime and returns success count of deleted records"
+    },
+    {
+      "name": "group-create-update",
+      "description": "create or update accounting group (chart of accounts node under which ledgers are nested) in Tally Prime, returns count of created and / or altered records"
+    },
+    {
+      "name": "stock-group-create-update",
+      "description": "create or update stock group (group under which stock items are nested) in Tally Prime, returns count of created and / or altered records"
+    },
+    {
+      "name": "unit-create-update",
+      "description": "create or update unit of measurement used by stock items in Tally Prime, supports simple unit (like Nos, Kgs) and compound unit (like Box of 12 Nos), returns count of created and / or altered records"
+    },
+    {
+      "name": "godown-create-update",
+      "description": "create or update godown or warehouse or storage location of stock items in Tally Prime, returns count of created and / or altered records"
+    },
+    {
+      "name": "cost-category-create-update",
+      "description": "create or update cost category used to group cost centres for parallel allocation in Tally Prime, returns count of created and / or altered records"
+    },
+    {
+      "name": "cost-centre-create-update",
+      "description": "create or update cost centre or profit centre used to track income and expenses of a department, branch, project or employee in Tally Prime, returns count of created and / or altered records"
+    },
+    {
+      "name": "stock-item-create-update",
+      "description": "create or update stock item (product or material forming part of inventory) in Tally Prime, returns count of created and / or altered records"
+    },
+    {
+      "name": "voucher-create-update",
+      "description": "creates accounting and / or inventory vouchers (transactions like payment, receipt, contra, journal, sales, purchase, debit note, credit note, delivery note, receipt note) in Tally Prime, or updates an existing voucher when its guid is supplied. amount convention is debit is negative and credit is positive, and the sum of all amounts of a voucher must be zero. quantity is always an absolute positive number, since inward or outward movement is derived by Tally from the voucher type. when guid is supplied the voucher is fully replaced by the supplied content, so send every entry of that voucher and not just the changed one. guid of an existing voucher can be picked from the output of ledger-account tool. returns count of created and / or altered records"
+    },
+    {
+      "name": "voucher-delete",
+      "description": "deletes vouchers (transactions) from Tally Prime permanently and returns count of deleted records. every voucher is identified by its guid, which along with date, voucher type and voucher number can be picked from the output of ledger-account tool. this operation cannot be undone, so confirm with the user before calling this tool"
     }
   ],
   "tools_generated": false,

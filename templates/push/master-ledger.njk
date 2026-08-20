@@ -8,14 +8,14 @@
                 <REPORTNAME>All Masters</REPORTNAME>
                 <STATICVARIABLES>
                     {% if targetCompany %}
-                    <SVCURRENTCOMPANY>{{targetCompany | escape}}</SVCURRENTCOMPANY>
+                    <SVCURRENTCOMPANY>{{ targetCompany | escape }}</SVCURRENTCOMPANY>
                     {% endif %}
                 </STATICVARIABLES>
             </REQUESTDESC>
             <REQUESTDATA>
                 {% for master in masters %}
                 <TALLYMESSAGE>
-                    <LEDGER NAME="{{ master._name or master.name | escape }}" ACTION="Create">
+                    <LEDGER NAME="{{ (master._name or master.name) | escape }}" ACTION="Create">
                         <LANGUAGENAME.LIST>
                             <NAME.LIST>
                                 <NAME>{{ master.name | escape }}</NAME>
@@ -28,16 +28,51 @@
                         <OPENINGBALANCE>{{ master.openingBalance }}</OPENINGBALANCE>
                         {% endif %}
                         {% if master.isBillWise != undefined %}
-                        <ISBILLWISEON>{{"Yes" if master.isBillWise else "No" }}</ISBILLWISEON>
+                        <ISBILLWISEON>{{ "Yes" if master.isBillWise else "No" }}</ISBILLWISEON>
                         {% if master.billCreditPeriod != undefined %}
                         <BILLCREDITPERIOD>{{ master.billCreditPeriod }} Days</BILLCREDITPERIOD>
                         {% endif %}
                         {% endif %}
+                        {% if master.isCostCentre != undefined %}
+                        <ISCOSTCENTRESON>{{ "Yes" if master.isCostCentre else "No" }}</ISCOSTCENTRESON>
+                        {% endif %}
+                        {% if master.email != undefined %}
+                        <EMAIL>{{ master.email | escape }}</EMAIL>
+                        {% endif %}
+                        {% if master.mobileNumber != undefined %}
+                        <LEDGERMOBILE>{{ master.mobileNumber | escape }}</LEDGERMOBILE>
+                        {% endif %}
+                        {% if master.bankDetails %}
+                        <BANKDETAILS.LIST>
+                            <BANKACCOUNTNUMBER>{{ master.bankDetails.accountNumber | escape }}</BANKACCOUNTNUMBER>
+                            <BANKIFSCODE>{{ master.bankDetails.ifscCode | escape }}</BANKIFSCODE>
+                            {% if master.bankDetails.bankName != undefined %}
+                            <BANKNAME>{{ master.bankDetails.bankName | escape }}</BANKNAME>
+                            {% endif %}
+                            {% if master.bankDetails.accountHolderName != undefined %}
+                            <ACCOUNTHOLDERNAME>{{ master.bankDetails.accountHolderName | escape }}</ACCOUNTHOLDERNAME>
+                            {% endif %}
+                        </BANKDETAILS.LIST>
+                        {% endif %}
                         {% if master.mailingDetails %}
+                        {% if master.mailingDetails.address %}
+                        <ADDRESS.LIST TYPE="String">
+                            {% for line in master.mailingDetails.address %}
+                            <ADDRESS>{{ line | escape }}</ADDRESS>
+                            {% endfor %}
+                        </ADDRESS.LIST>
+                        {% endif %}
                         <LEDMAILINGDETAILS.LIST>
                             <APPLICABLEFROM>{{ master.mailingDetails.applicableFrom | formatDate("yyyyMMdd") }}</APPLICABLEFROM>
                             {% if master.mailingDetails.name != undefined %}
                             <MAILINGNAME>{{ master.mailingDetails.name | escape }}</MAILINGNAME>
+                            {% endif %}
+                            {% if master.mailingDetails.address %}
+                            <ADDRESS.LIST TYPE="String">
+                                {% for line in master.mailingDetails.address %}
+                                <ADDRESS>{{ line | escape }}</ADDRESS>
+                                {% endfor %}
+                            </ADDRESS.LIST>
                             {% endif %}
                             <COUNTRY>{{ master.mailingDetails.country | escape }}</COUNTRY>
                             <STATE>{{ master.mailingDetails.state | escape }}</STATE>
@@ -48,12 +83,15 @@
                         {% if master.gstRegistrationDetails %}
                         <LEDGSTREGDETAILS.LIST>
                             <APPLICABLEFROM>{{ master.gstRegistrationDetails.applicableFrom | formatDate("yyyyMMdd") }}</APPLICABLEFROM>
+                            {% if master.gstRegistrationDetails.registrationType != undefined %}
                             <GSTREGISTRATIONTYPE>{{ master.gstRegistrationDetails.registrationType | escape }}</GSTREGISTRATIONTYPE>
+                            {% endif %}
                             {% if master.gstRegistrationDetails.placeOfSupply != undefined %}
                             <PLACEOFSUPPLY>{{ master.gstRegistrationDetails.placeOfSupply | escape }}</PLACEOFSUPPLY>
                             {% endif %}
                             <GSTIN>{{ master.gstRegistrationDetails.gstin | escape }}</GSTIN>
                         </LEDGSTREGDETAILS.LIST>
+                        {% endif %}
                         {% endif %}
                     </LEDGER>
                 </TALLYMESSAGE>

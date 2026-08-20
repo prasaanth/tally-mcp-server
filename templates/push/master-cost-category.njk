@@ -1,0 +1,36 @@
+<ENVELOPE>
+    <HEADER>
+        <TALLYREQUEST>Import Data</TALLYREQUEST>
+    </HEADER>
+    <BODY>
+        <IMPORTDATA>
+            <REQUESTDESC>
+                <REPORTNAME>All Masters</REPORTNAME>
+                <STATICVARIABLES>
+                    {% if targetCompany %}
+                    <SVCURRENTCOMPANY>{{ targetCompany | escape }}</SVCURRENTCOMPANY>
+                    {% endif %}
+                </STATICVARIABLES>
+            </REQUESTDESC>
+            <REQUESTDATA>
+                {% for master in masters %}
+                <TALLYMESSAGE>
+                    <COSTCATEGORY NAME="{{ (master._name or master.name) | escape }}" ACTION="Create">
+                        <LANGUAGENAME.LIST>
+                            <NAME.LIST>
+                                <NAME>{{ master.name | escape }}</NAME>
+                            </NAME.LIST>
+                        </LANGUAGENAME.LIST>
+                        {% if master.allocateRevenue != undefined %}
+                        <ALLOCATEREVENUE>{{ "Yes" if master.allocateRevenue else "No" }}</ALLOCATEREVENUE>
+                        {% endif %}
+                        {% if master.allocateNonRevenue != undefined %}
+                        <ALLOCATENONREVENUE>{{ "Yes" if master.allocateNonRevenue else "No" }}</ALLOCATENONREVENUE>
+                        {% endif %}
+                    </COSTCATEGORY>
+                </TALLYMESSAGE>
+                {% endfor %}
+            </REQUESTDATA>
+        </IMPORTDATA>
+    </BODY>
+</ENVELOPE>

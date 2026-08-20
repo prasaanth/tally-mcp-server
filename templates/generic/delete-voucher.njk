@@ -1,0 +1,30 @@
+<ENVELOPE>
+    <HEADER>
+        <TALLYREQUEST>Import Data</TALLYREQUEST>
+    </HEADER>
+    <BODY>
+        <IMPORTDATA>
+            <REQUESTDESC>
+                <REPORTNAME>Vouchers</REPORTNAME>
+                <STATICVARIABLES>
+                    {% if targetCompany %}
+                    <SVCURRENTCOMPANY>{{ targetCompany | escape }}</SVCURRENTCOMPANY>
+                    {% endif %}
+                </STATICVARIABLES>
+            </REQUESTDESC>
+            <REQUESTDATA>
+                {% for voucher in vouchers %}
+                <TALLYMESSAGE xmlns:UDF="TallyUDF">
+                    <VOUCHER REMOTEID="{{ voucher.guid | escape }}" VCHTYPE="{{ voucher.voucherType | escape }}" ACTION="Delete">
+                        <DATE>{{ voucher.date | formatDate("yyyyMMdd") }}</DATE>
+                        <VOUCHERTYPENAME>{{ voucher.voucherType | escape }}</VOUCHERTYPENAME>
+                        {% if voucher.voucherNumber %}
+                        <VOUCHERNUMBER>{{ voucher.voucherNumber | escape }}</VOUCHERNUMBER>
+                        {% endif %}
+                    </VOUCHER>
+                </TALLYMESSAGE>
+                {% endfor %}
+            </REQUESTDATA>
+        </IMPORTDATA>
+    </BODY>
+</ENVELOPE>
