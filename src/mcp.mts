@@ -54,6 +54,23 @@ const inventoryEntrySchema = z.object({
 const lstMasterCollection = lstCollections.filter((collection) => collection !== 'Bill').map((collection) => collection.toLowerCase());
 
 /**
+ * Builds the response of a report tool. An empty result used to be reported as a well formed
+ * success carrying a blank tableID, which a caller could not tell apart from Tally having no
+ * company loaded at all, so the empty case now says so explicitly
+ */
+function buildTableResult(tableID: string, lstRow: any[]): string {
+  if (!Array.isArray(lstRow) || lstRow.length === 0) {
+    return JSON.stringify({
+      tableID: '',
+      rowCount: 0,
+      message: 'Tally returned no rows, so no table was cached. Apart from the data genuinely not existing, this is also what happens when no company is loaded in Tally or when the requested period falls outside the books. Call the server-info tool to check whether Tally is reachable and which company is active'
+    });
+  }
+
+  return JSON.stringify({ tableID, rowCount: lstRow.length });
+}
+
+/**
  * Version reported to the MCP client, read from package.json of the deployment so that
  * the build actually running can be identified from the client
  */
@@ -158,6 +175,53 @@ export async function registerMcpServer(): Promise<McpServer> {
     version: resolveServerVersion()
   });
 
+
+  mcpServer.registerTool(
+    'server-info',
+    {
+      title: 'Server Info',
+      description: `returns the build and connectivity state of this Tally Prime MCP server: its version, whether write tools are exposed, the Tally host and port it talks to, whether Tally answered, the list of companies open in Tally and which one is active. call this first whenever a tool returns no data or behaves unexpectedly, since an unreachable Tally and a Tally with no company loaded both look like empty results everywhere else`,
+      inputSchema: {},
+      annotations: {
+        readOnlyHint: true,
+        openWorldHint: false
+      }
+    },
+    async () => {
+      const objInfo: any = {
+        version: resolveServerVersion(),
+        writeToolsEnabled: !isWriteBlocked,
+        tallyHost: process.env.TALLY_HOST || 'localhost',
+        tallyPort: parseInt(process.env.TALLY_PORT || '9000')
+      };
+
+      try {
+        const lstCompany = await queryCollection('Company', ['Name', 'BooksFrom', 'IsActiveCompany'], new Map<string, string>());
+        const objActiveCompany = lstCompany.find((item) => item.IsActiveCompany);
+
+        objInfo.tallyReachable = true;
+        objInfo.companies = lstCompany.map((item) => item.Name);
+        objInfo.activeCompany = objActiveCompany ? objActiveCompany.Name : null;
+        objInfo.booksFrom = objActiveCompany && objActiveCompany.BooksFrom instanceof Date ? utility.Date.format(objActiveCompany.BooksFrom, 'yyyy-MM-dd') : null;
+
+        if (lstCompany.length === 0) {
+          objInfo.diagnosis = 'Tally answered but reported no company. Open a company in Tally (Company > Open) before calling any other tool, since every report and every write needs a company context';
+        } else if (!objActiveCompany) {
+          objInfo.diagnosis = 'Companies are loaded in Tally but none is active. Select one in Tally or call the set-company tool';
+        } else {
+          objInfo.diagnosis = 'Tally is reachable and a company is active';
+        }
+      } catch (err) {
+        objInfo.tallyReachable = false;
+        objInfo.diagnosis = `Tally did not answer on ${objInfo.tallyHost}:${objInfo.tallyPort}. Ensure Tally Prime is running and its XML server is enabled from Help (F1) > Settings > Connectivity > Client/Server configuration with TallyPrime acting as Server`;
+        objInfo.error = formatError(err);
+      }
+
+      return {
+        content: [{ type: 'text', text: JSON.stringify(objInfo) }]
+      };
+    }
+  );
 
   mcpServer.registerTool(
     'metadata-collection',
@@ -356,7 +420,7 @@ export async function registerMcpServer(): Promise<McpServer> {
         const tableId = await cacheTable(fieldMetadataMap, result);
 
         return {
-          content: [{ type: 'text', text: JSON.stringify({ tableID: tableId }) }]
+          content: [{ type: 'text', text: buildTableResult(tableId, result) }]
         };
       } catch (err) {
         return {
@@ -427,7 +491,7 @@ export async function registerMcpServer(): Promise<McpServer> {
         result = renameObjectArrayProperties(result, new Map<string, string>([['Name', 'ledger_name'], ['Parent', 'group_name'], ['_PrimaryGroup', 'primary_group'], ['IsRevenue', 'bs_pl'], ['IsDeemedPositive', 'dr_cr'], ['AffectsGrossProfit', 'affects_gross_profit'], ['SortPosition', 'sort_position']]));
         let tableID = await cacheTable(new Map<string, string>([['ledger_name', 'string'], ['group_name', 'string'], ['primary_group', 'string'], ['bs_pl', 'boolean'], ['dr_cr', 'boolean'], ['affects_gross_profit', 'boolean'], ['sort_position', 'number']]), result);
         return {
-          content: [{ type: 'text', text: JSON.stringify({ tableID }) }]
+          content: [{ type: 'text', text: buildTableResult(tableID, result) }]
         };
       } catch (err) {
         return {
@@ -465,7 +529,7 @@ export async function registerMcpServer(): Promise<McpServer> {
         result = renameObjectArrayProperties(result, new Map<string, string>([['Name', 'ledger_name'], ['Parent', 'group_name'], ['OpeningBalance', 'opening_balance'], ['DebitTotals', 'net_debit'], ['CreditTotals', 'net_credit'], ['ClosingBalance', 'closing_balance']]));
         let tableID = await cacheTable(new Map<string, string>([['ledger_name', 'string'], ['group_name', 'string'], ['opening_balance', 'amount'], ['net_debit', 'amount'], ['net_credit', 'amount'], ['closing_balance', 'amount']]), result);
         return {
-          content: [{ type: 'text', text: JSON.stringify({ tableID }) }]
+          content: [{ type: 'text', text: buildTableResult(tableID, result) }]
         };
       } catch (err) {
         return {
@@ -517,7 +581,7 @@ export async function registerMcpServer(): Promise<McpServer> {
         result.push(...result_ledger);
         let tableID = await cacheTable(new Map<string, string>([['ledger_name', 'string'], ['group_name', 'string'], ['closing_balance', 'amount']]), result);
         return {
-          content: [{ type: 'text', text: JSON.stringify({ tableID }) }]
+          content: [{ type: 'text', text: buildTableResult(tableID, result) }]
         };
       } catch (err) {
         return {
@@ -573,7 +637,7 @@ export async function registerMcpServer(): Promise<McpServer> {
 
         let tableID = await cacheTable(new Map<string, string>([['ledger_name', 'string'], ['group_name', 'string'], ['closing_balance', 'amount']]), result);
         return {
-          content: [{ type: 'text', text: JSON.stringify({ tableID }) }]
+          content: [{ type: 'text', text: buildTableResult(tableID, result) }]
         };
       } catch (err) {
         return {
@@ -610,7 +674,7 @@ export async function registerMcpServer(): Promise<McpServer> {
         result = renameObjectArrayProperties(result, new Map<string, string>([['Name', 'stock_item_name'], ['Parent', 'stock_group_name'], ['OpeningBalance', 'opening_quantity'], ['OpeningValue', 'opening_value'], ['InwardQuantity', 'inward_quantity'], ['InwardValue', 'inward_value'], ['OutwardQuantity', 'outward_quantity'], ['OutwardValue', 'outward_value'], ['ClosingBalance', 'closing_quantity'], ['ClosingValue', 'closing_value']]));
         let tableID = await cacheTable(new Map<string, string>([['stock_item_name', 'string'], ['stock_group_name', 'string'], ['opening_quantity', 'number'], ['opening_value', 'number'], ['inward_quantity', 'number'], ['inward_value', 'number'], ['outward_quantity', 'number'], ['outward_value', 'number'], ['closing_quantity', 'number'], ['closing_value', 'number']]), result);
         return {
-          content: [{ type: 'text', text: JSON.stringify({ tableID }) }]
+          content: [{ type: 'text', text: buildTableResult(tableID, result) }]
         };
       } catch (err) {
         return {
@@ -639,7 +703,7 @@ export async function registerMcpServer(): Promise<McpServer> {
     async (args) => {
       try {
         let lstFilters = new Map<string, string>([['Exact_Ledger', `$$IsEqual:$Name:"${args.ledgerName.replace(/"/g, '""')}"`]]);
-        let result = await queryCollection('Ledger', ['ClosingBalance'], lstFilters, args.targetCompany, undefined, new Date(args.toDate));
+        let result = await queryCollection('Ledger', ['ClosingBalance'], lstFilters, args.targetCompany, undefined, parseInputDate(args.toDate));
         if (result.length > 0) {
           return { content: [{ type: 'text', text: JSON.stringify({ amount: result[0].ClosingBalance }) }] };
         }
@@ -673,9 +737,14 @@ export async function registerMcpServer(): Promise<McpServer> {
     async (args) => {
       try {
         let lstFilters = new Map<string, string>([['Exact_StockItem', `$$IsEqual:$Name:"${args.itemName.replace(/"/g, '""')}"`]]);
-        let result = await queryCollection('StockItem', ['ClosingBalance', 'Unit'], lstFilters, args.targetCompany, undefined, new Date(args.toDate));
+        let result = await queryCollection('StockItem', ['ClosingBalance', 'Unit'], lstFilters, args.targetCompany, undefined, parseInputDate(args.toDate));
+
+        if (result.length === 0) {
+          return { isError: true, content: [{ type: 'text', text: 'No stock item found with the given name' }] };
+        }
+
         return {
-          content: [{ type: 'text', text: JSON.stringify(result.length ? { quantity: result[0].ClosingBalance, unit_of_measurement: result[0].Unit } : '') }]
+          content: [{ type: 'text', text: JSON.stringify({ quantity: result[0].ClosingBalance, unit_of_measurement: result[0].Unit }) }]
         };
       } catch (err) {
         return {
@@ -711,7 +780,7 @@ export async function registerMcpServer(): Promise<McpServer> {
         result = renameObjectArrayProperties(result, new Map<string, string>([['BillDate', 'bill_date'], ['Name', 'reference_number'], ['ClosingBalance', 'outstanding_amount'], ['Parent', 'party_name'], ['_OverDueDays', 'overdue_days']]));
         let tableID = await cacheTable(new Map<string, string>([['bill_date', 'date'], ['reference_number', 'string'], ['outstanding_amount', 'number'], ['party_name', 'string'], ['overdue_days', 'number']]), result);
         return {
-          content: [{ type: 'text', text: JSON.stringify({ tableID }) }]
+          content: [{ type: 'text', text: buildTableResult(tableID, result) }]
         };
       } catch (err) {
         return {
@@ -770,7 +839,7 @@ export async function registerMcpServer(): Promise<McpServer> {
         }
         const tableId = await cacheTable(new Map([['guid', 'string'], ['date', 'date'], ['voucher_type', 'string'], ['voucher_number', 'string'], ['alternate_ledger', 'string'], ['party_name', 'string'], ['amount', 'number'], ['narration', 'string']]), resp.data);
         return {
-          content: [{ type: 'text', text: JSON.stringify({ tableID: tableId }) }]
+          content: [{ type: 'text', text: buildTableResult(tableId, resp.data) }]
         };
       }
     }
@@ -824,7 +893,7 @@ export async function registerMcpServer(): Promise<McpServer> {
         }
         const tableId = await cacheTable(new Map([['date', 'date'], ['voucher_type', 'string'], ['voucher_number', 'string'], ['party_ledger', 'string'], ['quantity', 'number'], ['amount', 'number'], ['narration', 'string'], ['tracking_number', 'string'], ['voucher_category', 'string']]), resp.data);
         return {
-          content: [{ type: 'text', text: JSON.stringify({ tableID: tableId }) }]
+          content: [{ type: 'text', text: buildTableResult(tableId, resp.data) }]
         };
       }
 
@@ -840,15 +909,33 @@ export async function registerMcpServer(): Promise<McpServer> {
         companyName: z.string().describe('company name to set as active, validate it using list-master tool with collection as company')
       },
       annotations: {
-        readOnlyHint: true,
-        openWorldHint: false
+        readOnlyHint: false,
+        openWorldHint: false,
+        destructiveHint: false,
+        idempotentHint: true
       }
     },
     async (args) => {
       try {
-        let inputParams = new Map([['SVCurrentCompany', utility.String.escapeHTML(args.companyName)]]);
+        // Tally answers a company switch with an empty response whether or not it worked, so the
+        // name is checked first and the switch is confirmed afterwards instead of being assumed
+        const lstCompanyName = await resolveMasterNames('Company', [args.companyName]);
+        const targetCompany = lstCompanyName.get(args.companyName) as string;
+
+        let inputParams = new Map([['SVCurrentCompany', utility.String.escapeHTML(targetCompany)]]);
         await invokeTallyAction('ChangeCurrentCompany', inputParams);
-        return { content: [{ type: 'text', text: JSON.stringify('OK') }] };
+
+        const lstCompany = await queryCollection('Company', ['Name', 'IsActiveCompany'], new Map<string, string>());
+        const objActiveCompany = lstCompany.find((item) => item.IsActiveCompany);
+
+        if (!objActiveCompany || objActiveCompany.Name !== targetCompany) {
+          return {
+            isError: true,
+            content: [{ type: 'text', text: `Tally did not switch to company ${targetCompany}. Active company is ${objActiveCompany ? objActiveCompany.Name : 'none'}. Kindly ensure the company is loaded in Tally` }]
+          };
+        }
+
+        return { content: [{ type: 'text', text: JSON.stringify({ activeCompany: objActiveCompany.Name }) }] };
       } catch (err) {
         return {
           isError: true, content: [{ type: 'text', text: formatError(err) }]
@@ -868,17 +955,28 @@ export async function registerMcpServer(): Promise<McpServer> {
         toDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('end date of the period')
       },
       annotations: {
-        readOnlyHint: true,
-        openWorldHint: false
+        readOnlyHint: false,
+        openWorldHint: false,
+        destructiveHint: false,
+        idempotentHint: true
       }
     },
     async (args) => {
       try {
-        let _fromDate = new Date(args.fromDate);
-        let _toDate = new Date(args.toDate);
+        let _fromDate = parseInputDate(args.fromDate);
+        let _toDate = parseInputDate(args.toDate);
+
+        if (_fromDate > _toDate) {
+          return {
+            isError: true,
+            content: [{ type: 'text', text: `fromDate ${args.fromDate} falls after toDate ${args.toDate}` }]
+          };
+        }
+
         let inputParams = new Map([['SVFromDate', utility.Date.format(_fromDate, 'd-MMM-yyyy')], ['SVToDate', utility.Date.format(_toDate, 'd-MMM-yyyy')]]);
         await invokeTallyAction('Change Period', inputParams);
-        return { content: [{ type: 'text', text: JSON.stringify('OK') }] };
+
+        return { content: [{ type: 'text', text: JSON.stringify({ fromDate: args.fromDate, toDate: args.toDate }) }] };
       } catch (err) {
         return {
           isError: true, content: [{ type: 'text', text: formatError(err) }]
@@ -1461,7 +1559,48 @@ export async function registerMcpServer(): Promise<McpServer> {
       },
       async (args) => {
         try {
-          // validate master names referred by the vouchers upfront, so that Tally does not
+          // arithmetic is checked first because it costs nothing. Resolving master names needs a
+          // round trip to Tally and short circuits on the first missing name, which would otherwise
+          // leave an unbalanced voucher or a mismatched allocation undetected until the name is fixed
+          for (const voucher of args.vouchers) {
+            const lstBillTotal = voucher.ledgerEntries.map((entry) => roundAmount((entry.billAllocations || []).reduce((total, bill) => total + bill.amount, 0)));
+            const lstCostCentreTotal = voucher.ledgerEntries.map((entry) => roundAmount((entry.costCentreAllocations || []).reduce((total, allocation) => total + allocation.amount, 0)));
+
+            // Tally rejects an unbalanced voucher, so it is validated before the request is fired
+            if (voucher.ledgerEntries.length > 0) {
+              const totalAmount = roundAmount(voucher.ledgerEntries.reduce((total, entry) => total + entry.amount, 0)
+                + (voucher.inventoryEntries || []).filter((item) => item.accountingLedger).reduce((total, item) => total + item.amount, 0));
+
+              if (Math.abs(totalAmount) > 0.005) {
+                return {
+                  isError: true,
+                  content: [{ type: 'text', text: `Voucher of type ${voucher.voucherType} dated ${voucher.date} is not balanced. Sum of all amounts is ${totalAmount} whereas it must be 0. Kindly note that debit is negative and credit is positive` }]
+                };
+              }
+            }
+
+            // Tally rejects bill wise and cost centre allocations which do not add up to the ledger entry
+            for (let i = 0; i < voucher.ledgerEntries.length; i++) {
+              const entry = voucher.ledgerEntries[i];
+              const entryAmount = roundAmount(entry.amount);
+
+              if (entry.billAllocations?.length && Math.abs(lstBillTotal[i] - entryAmount) > 0.005) {
+                return {
+                  isError: true,
+                  content: [{ type: 'text', text: `Bill wise allocation of ledger ${entry.ledgerName} in voucher of type ${voucher.voucherType} dated ${voucher.date} adds up to ${lstBillTotal[i]} whereas amount of the ledger entry is ${entryAmount}. Both must match` }]
+                };
+              }
+
+              if (entry.costCentreAllocations?.length && Math.abs(lstCostCentreTotal[i] - entryAmount) > 0.005) {
+                return {
+                  isError: true,
+                  content: [{ type: 'text', text: `Cost centre allocation of ledger ${entry.ledgerName} in voucher of type ${voucher.voucherType} dated ${voucher.date} adds up to ${lstCostCentreTotal[i]} whereas amount of the ledger entry is ${entryAmount}. Both must match` }]
+                };
+              }
+            }
+          }
+
+          // validate master names referred by the vouchers, so that Tally does not
           // end up importing a part of the batch and rejecting the rest of it
           const lstLedgerName = await resolveMasterNames('Ledger', args.vouchers.flatMap((voucher) => [
             voucher.partyLedgerName,
@@ -1511,42 +1650,6 @@ export async function registerMcpServer(): Promise<McpServer> {
             const lstInventoryEntry = (voucher.inventoryEntries || []).map(mapInventoryEntry);
             const lstSourceEntry = (voucher.sourceEntries || []).map(mapInventoryEntry);
             const lstDestinationEntry = (voucher.destinationEntries || []).map(mapInventoryEntry);
-
-            // Tally rejects an unbalanced voucher, so it is validated before the request is fired
-            if (lstLedgerEntry.length > 0) {
-              const totalAmount = roundAmount(lstLedgerEntry.reduce((total, entry) => total + entry.amount, 0)
-                + lstInventoryEntry.filter((item) => item.accountingLedger).reduce((total, item) => total + item.amount, 0));
-
-              if (Math.abs(totalAmount) > 0.005) {
-                return {
-                  isError: true,
-                  content: [{ type: 'text', text: `Voucher of type ${voucher.voucherType} dated ${voucher.date} is not balanced. Sum of all amounts is ${totalAmount} whereas it must be 0. Kindly note that debit is negative and credit is positive` }]
-                };
-              }
-            }
-
-            // Tally rejects bill wise allocations which do not add up to the amount of the ledger entry
-            for (const entry of lstLedgerEntry) {
-              if (entry.billAllocations.length > 0) {
-                const totalBillAmount = roundAmount(entry.billAllocations.reduce((total, bill) => total + bill.amount, 0));
-                if (Math.abs(totalBillAmount - entry.amount) > 0.005) {
-                  return {
-                    isError: true,
-                    content: [{ type: 'text', text: `Bill wise allocation of ledger ${entry.ledgerName} in voucher of type ${voucher.voucherType} dated ${voucher.date} adds up to ${totalBillAmount} whereas amount of the ledger entry is ${entry.amount}. Both must match` }]
-                  };
-                }
-              }
-
-              if (entry.costCentreAllocations.length > 0) {
-                const totalCostCentreAmount = roundAmount(entry.costCentreAllocations.reduce((total, allocation) => total + allocation.amount, 0));
-                if (Math.abs(totalCostCentreAmount - entry.amount) > 0.005) {
-                  return {
-                    isError: true,
-                    content: [{ type: 'text', text: `Cost centre allocation of ledger ${entry.ledgerName} in voucher of type ${voucher.voucherType} dated ${voucher.date} adds up to ${totalCostCentreAmount} whereas amount of the ledger entry is ${entry.amount}. Both must match` }]
-                  };
-                }
-              }
-            }
 
             let objectView = voucher.objectView;
             if (!objectView) {

@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "tally-mcp-server",
   "display_name": "Tally Prime",
-  "version": "7.6.0",
+  "version": "7.6.1",
   "description": "Expose Tally Prime ERP data to MCP-compatible clients like Claude Desktop.",
   "author": {
     "name": "Dhananjay Gokhale",
@@ -55,6 +55,10 @@
     }
   },
   "tools": [
+    {
+      "name": "server-info",
+      "description": "returns the build and connectivity state of this Tally Prime MCP server: its version, whether write tools are exposed, the Tally host and port it talks to, whether Tally answered, the list of companies open in Tally and which one is active. call this first whenever a tool returns no data or behaves unexpectedly, since an unreachable Tally and a Tally with no company loaded both look like empty results everywhere else"
+    },
     {
       "name": "metadata-collection",
       "description": "returns collections metadata with collection and description"

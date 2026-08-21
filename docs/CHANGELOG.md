@@ -1,5 +1,17 @@
 # Release History
 
+### Version: v7.6.1 [21-Aug-2026]
+
+Added:
+* Tool **server-info** reporting the build version, whether write tools are exposed, the Tally host and port in use, whether Tally answered, the companies open in Tally and which one is active. An unreachable Tally and a Tally with no company loaded previously looked identical to an empty result everywhere else, which made both hard to tell apart from a genuine absence of data
+
+Fixed:
+* Tool **set-company** answered OK for a company that does not exist. The response of a Tally action was being discarded altogether, so every failure reached the caller as a silent success. The company name is now validated first, exceptions reported by Tally are raised, and the switch is confirmed by reading back the active company. Tool **set-period** likewise surfaces exceptions and validates that fromDate does not fall after toDate
+* Both tools were annotated readOnlyHint true although they change global state in Tally which is shared by every other client of that instance. They are now annotated as state changing, and remain available when BLOCK_WRITE is set since reports depend on them
+* Report tools answered with a blank tableID whether Tally had no company loaded or the query genuinely matched nothing. They now report rowCount along with an explanation of what an empty result can mean
+* Tool **stock-item-balance** answered with an empty string for a stock item which does not exist, where every comparable tool raises an error
+* Voucher balance and bill / cost centre allocation checks ran after master names were resolved against Tally. Since name resolution short circuits on the first missing name, a voucher which was both unbalanced and referred to an unknown ledger only ever reported the name. These checks cost nothing and now run first, before any round trip to Tally
+
 ### Version: v7.6 [20-Aug-2026]
 
 Added:
