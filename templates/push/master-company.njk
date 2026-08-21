@@ -10,7 +10,7 @@
             <REQUESTDATA>
                 {% for master in masters %}
                 <TALLYMESSAGE>
-                    <COMPANY NAME="{{ (master._name or master.name) | escape }}" ACTION="Create">
+                    <COMPANY NAME="{{ (master._name or master.name) | escape }}" ACTION="{{ master.action }}">
                         <NAME>{{ master.name | escape }}</NAME>
                         <ISUPDATINGTARGETID>No</ISUPDATINGTARGETID>
                         {% if master.mailingName != undefined %}

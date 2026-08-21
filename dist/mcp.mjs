@@ -40,6 +40,28 @@ const inventoryEntrySchema = z.object({
  */
 const lstMasterCollection = lstCollections.filter((collection) => collection !== 'Bill').map((collection) => collection.toLowerCase());
 /**
+ * Decides per master whether Tally is being asked to create or to alter, by matching each one
+ * against what Tally already holds. ACTION="Create" is not a safe no-op for a master which
+ * already exists: for some master types (units being the one that bites) Tally inserts a second
+ * record instead of altering the first, leaving the company with a duplicated name which it then
+ * reports as an internal error. Duplicates inside a single request are rejected for the same reason
+ */
+async function resolveMasterActions(collection, lstMaster, targetCompany) {
+    const lstIdentity = lstMaster.map((master) => (master._name || master.name || '').trim());
+    const lstDuplicate = lstIdentity.filter((name, index) => name !== '' && lstIdentity.indexOf(name) !== index);
+    if (lstDuplicate.length > 0)
+        throw new Error(`The same master appears more than once in this request: ${Array.from(new Set(lstDuplicate)).join(', ')}. Send one entry per master, since Tally can end up with duplicated records otherwise`);
+    const lstExisting = await queryCollection(collection, ['Name'], new Map(), targetCompany);
+    const lstExistingName = new Map();
+    lstExisting.forEach((item) => lstExistingName.set(item.Name.toLowerCase(), item.Name));
+    return lstMaster.map((master, index) => {
+        const exactName = lstExistingName.get(lstIdentity[index].toLowerCase());
+        if (master._name && !exactName)
+            throw new Error(`No ${collection} master named ${master._name} exists in Tally, so it cannot be modified. Kindly validate it using list-master tool`);
+        return { ...master, _name: exactName || master._name, action: exactName ? 'Alter' : 'Create' };
+    });
+}
+/**
  * Builds the response of a report tool. An empty result used to be reported as a well formed
  * success carrying a blank tableID, which a caller could not tell apart from Tally having no
  * company loaded at all, so the empty case now says so explicitly
@@ -908,7 +930,7 @@ export async function registerMcpServer() {
                         }
                         lstObjMasters.push(objLedger);
                     });
-                    objMasterInput.set('masters', lstObjMasters);
+                    objMasterInput.set('masters', await resolveMasterActions('Ledger', lstObjMasters, args.targetCompany));
                     if (args.targetCompany) {
                         objMasterInput.set('targetCompany', args.targetCompany);
                     }
@@ -998,7 +1020,7 @@ export async function registerMcpServer() {
         }, async (args) => {
             try {
                 let objMasterInput = new Map();
-                objMasterInput.set('masters', args.masters);
+                objMasterInput.set('masters', await resolveMasterActions('Group', args.masters, args.targetCompany));
                 if (args.targetCompany) {
                     objMasterInput.set('targetCompany', args.targetCompany);
                 }
@@ -1035,7 +1057,7 @@ export async function registerMcpServer() {
         }, async (args) => {
             try {
                 let objMasterInput = new Map();
-                objMasterInput.set('masters', args.masters);
+                objMasterInput.set('masters', await resolveMasterActions('StockGroup', args.masters, args.targetCompany));
                 if (args.targetCompany) {
                     objMasterInput.set('targetCompany', args.targetCompany);
                 }
@@ -1084,7 +1106,7 @@ export async function registerMcpServer() {
                     };
                 }
                 let objMasterInput = new Map();
-                objMasterInput.set('masters', args.masters);
+                objMasterInput.set('masters', await resolveMasterActions('Unit', args.masters, args.targetCompany));
                 if (args.targetCompany) {
                     objMasterInput.set('targetCompany', args.targetCompany);
                 }
@@ -1122,7 +1144,7 @@ export async function registerMcpServer() {
         }, async (args) => {
             try {
                 let objMasterInput = new Map();
-                objMasterInput.set('masters', args.masters);
+                objMasterInput.set('masters', await resolveMasterActions('Godown', args.masters, args.targetCompany));
                 if (args.targetCompany) {
                     objMasterInput.set('targetCompany', args.targetCompany);
                 }
@@ -1159,7 +1181,7 @@ export async function registerMcpServer() {
         }, async (args) => {
             try {
                 let objMasterInput = new Map();
-                objMasterInput.set('masters', args.masters);
+                objMasterInput.set('masters', await resolveMasterActions('CostCategory', args.masters, args.targetCompany));
                 if (args.targetCompany) {
                     objMasterInput.set('targetCompany', args.targetCompany);
                 }
@@ -1196,7 +1218,7 @@ export async function registerMcpServer() {
         }, async (args) => {
             try {
                 let objMasterInput = new Map();
-                objMasterInput.set('masters', args.masters);
+                objMasterInput.set('masters', await resolveMasterActions('CostCentre', args.masters, args.targetCompany));
                 if (args.targetCompany) {
                     objMasterInput.set('targetCompany', args.targetCompany);
                 }
@@ -1275,7 +1297,7 @@ export async function registerMcpServer() {
                     return objStockItem;
                 });
                 let objMasterInput = new Map();
-                objMasterInput.set('masters', lstObjMasters);
+                objMasterInput.set('masters', await resolveMasterActions('StockItem', lstObjMasters, args.targetCompany));
                 if (args.targetCompany) {
                     objMasterInput.set('targetCompany', args.targetCompany);
                 }
@@ -1532,7 +1554,7 @@ export async function registerMcpServer() {
                     booksFrom: parseInputDate(master.booksFrom)
                 }));
                 let objMasterInput = new Map();
-                objMasterInput.set('masters', lstObjMasters);
+                objMasterInput.set('masters', await resolveMasterActions('Company', lstObjMasters, undefined));
                 let result = await importMasters('master-company', objMasterInput);
                 return {
                     content: [{ type: 'text', text: JSON.stringify(result) }]
@@ -1565,7 +1587,7 @@ export async function registerMcpServer() {
         }, async (args) => {
             try {
                 let objMasterInput = new Map();
-                objMasterInput.set('masters', args.masters);
+                objMasterInput.set('masters', await resolveMasterActions('StockCategory', args.masters, args.targetCompany));
                 if (args.targetCompany) {
                     objMasterInput.set('targetCompany', args.targetCompany);
                 }
@@ -1620,7 +1642,7 @@ export async function registerMcpServer() {
                     return objVoucherType;
                 });
                 let objMasterInput = new Map();
-                objMasterInput.set('masters', lstObjMasters);
+                objMasterInput.set('masters', await resolveMasterActions('VoucherType', lstObjMasters, args.targetCompany));
                 if (args.targetCompany) {
                     objMasterInput.set('targetCompany', args.targetCompany);
                 }
@@ -1662,7 +1684,7 @@ export async function registerMcpServer() {
         }, async (args) => {
             try {
                 let objMasterInput = new Map();
-                objMasterInput.set('masters', args.masters);
+                objMasterInput.set('masters', await resolveMasterActions('Currency', args.masters, args.targetCompany));
                 if (args.targetCompany) {
                     objMasterInput.set('targetCompany', args.targetCompany);
                 }
@@ -1716,7 +1738,7 @@ export async function registerMcpServer() {
                     igstRate: master.rate
                 }));
                 let objMasterInput = new Map();
-                objMasterInput.set('masters', lstObjMasters);
+                objMasterInput.set('masters', await resolveMasterActions('GSTClassification', lstObjMasters, args.targetCompany));
                 if (args.targetCompany) {
                     objMasterInput.set('targetCompany', args.targetCompany);
                 }
@@ -1788,7 +1810,7 @@ export async function registerMcpServer() {
                     costCentreBudgets: (master.costCentreBudgets || []).map((item) => ({ name: lstCostCentreName.get(item.name), amount: roundAmount(item.amount) }))
                 }));
                 let objMasterInput = new Map();
-                objMasterInput.set('masters', lstObjMasters);
+                objMasterInput.set('masters', await resolveMasterActions('Budget', lstObjMasters, args.targetCompany));
                 if (args.targetCompany) {
                     objMasterInput.set('targetCompany', args.targetCompany);
                 }
@@ -1840,7 +1862,7 @@ export async function registerMcpServer() {
                     roundingLimit: master.roundingLimit === undefined ? 1 : master.roundingLimit
                 }));
                 let objMasterInput = new Map();
-                objMasterInput.set('masters', lstObjMasters);
+                objMasterInput.set('masters', await resolveMasterActions('Ledger', lstObjMasters, args.targetCompany));
                 if (args.targetCompany) {
                     objMasterInput.set('targetCompany', args.targetCompany);
                 }
@@ -1907,7 +1929,7 @@ export async function registerMcpServer() {
                     dateOfBirth: master.dateOfBirth ? parseInputDate(master.dateOfBirth) : undefined
                 }));
                 let objMasterInput = new Map();
-                objMasterInput.set('masters', lstObjMasters);
+                objMasterInput.set('masters', await resolveMasterActions('Employee', lstObjMasters, args.targetCompany));
                 if (args.targetCompany) {
                     objMasterInput.set('targetCompany', args.targetCompany);
                 }
@@ -1954,7 +1976,7 @@ export async function registerMcpServer() {
                     };
                 }
                 let objMasterInput = new Map();
-                objMasterInput.set('masters', args.masters);
+                objMasterInput.set('masters', await resolveMasterActions('AttendanceType', args.masters, args.targetCompany));
                 if (args.targetCompany) {
                     objMasterInput.set('targetCompany', args.targetCompany);
                 }
