@@ -165,6 +165,11 @@ export async function queryCollection(targetCollection: string, lstFields: strin
 
 };
 
+/**
+ * Invokes a Tally action (a report used only for its side effect, like switching company or period).
+ * The response was earlier discarded, which turned every failure into a silent success for the caller,
+ * so an exception reported by Tally is now raised instead
+ */
 export async function invokeTallyAction(targetAction: string, lstParameters: Map<string, any>): Promise<void> {
     try {
         let objTemplateArgs = new Map<string, any>();
@@ -177,7 +182,12 @@ export async function invokeTallyAction(targetAction: string, lstParameters: Map
         });
         objTemplateArgs.set('variables', variables);
 
-        await sendTallyXml(xmlInvokeAction, objTemplateArgs); //send XML to Tally
+        let respContent = await sendTallyXml(xmlInvokeAction, objTemplateArgs); //send XML to Tally
+
+        if (respContent && respContent.includes('<EXCEPTION>')) {
+            let regErr = respContent.match(/<EXCEPTION>([\s\S]+?)<\/EXCEPTION>/);
+            throw new Error(utility.String.unescapeHTML(regErr ? regErr[1] : 'Unknown error received from Tally'));
+        }
     } catch (err) {
         throw err;
     }

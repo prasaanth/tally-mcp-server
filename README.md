@@ -18,12 +18,12 @@ Port = 9000
 
 ## Download
 Avoid cloning repository directly. Utility is available for download (with required dependencies) on below link <br>
-[https://excelkida.com/resource/tally-mcp-server-v7.6.zip](https://excelkida.com/resource/tally-mcp-server-v7.6.zip)
+[https://excelkida.com/resource/tally-mcp-server-v7.6.1.zip](https://excelkida.com/resource/tally-mcp-server-v7.6.1.zip)
 
 One-click installer **extension** for **Claude Desktop**<br>
-[https://excelkida.com/resource/tally-mcp-server-v7.6.mcpb](https://excelkida.com/resource/tally-mcp-server-v7.6.mcpb)
+[https://excelkida.com/resource/tally-mcp-server-v7.6.1.mcpb](https://excelkida.com/resource/tally-mcp-server-v7.6.1.mcpb)
 
-Last updated: version **7.6** [20-Aug-2026]
+Last updated: version **7.6.1** [21-Aug-2026]
 
 Refer docs/CHANGELOG.md for details
 
@@ -110,7 +110,23 @@ This mode of setup is to be used, when using browser-based MCP client like ChatG
 
 ## Available Tools
 
-This server currently exposes 38 MCP tools. Tools that write back into Tally Prime (create / update / delete of masters and vouchers) can be hidden altogether via the `BLOCK_WRITE` setting described under Environment Variables.
+This server currently exposes 39 MCP tools. Tools that write back into Tally Prime (create / update / delete of masters and vouchers) can be hidden altogether via the `BLOCK_WRITE` setting described under Environment Variables.
+
+### server-info
+Reports the build and connectivity state of this server. Call it first whenever a tool returns no data or behaves unexpectedly — an unreachable Tally and a Tally with no company loaded both look like an empty result everywhere else.
+
+**Input**
+No input.
+
+**Output**
+JSON containing:
+1. `version` — build of the MCP server that is actually running
+1. `writeToolsEnabled` — false when `BLOCK_WRITE` is set
+1. `tallyHost` / `tallyPort` — where this server is trying to reach Tally
+1. `tallyReachable` — whether Tally answered at all
+1. `companies` — companies open in Tally
+1. `activeCompany` and `booksFrom` — the current company context
+1. `diagnosis` — plain-language reading of the above, and what to do about it
 
 ### metadata-collection
 Returns metadata for supported collections.
