@@ -1,5 +1,13 @@
 # Release History
 
+### Version: v7.6.2 [21-Aug-2026]
+
+Fixed:
+* **Data corruption on re-creating an existing master.** Every master template sent ACTION="Create" unconditionally. That is a safe create-or-alter for some master types but not for all of them: for a Unit, Tally inserts a second record instead of altering the first, and the company is then left with two masters of the same name, which Tally reports as *Internal Error ... is DUPLICATED in Company*. Every master tool now reads back what Tally already holds and sends ACTION="Alter" for a master which exists and ACTION="Create" only for one which does not. The implicit Create default was removed from the templates as well, so this cannot silently come back
+* Sending the same master twice inside a single request is rejected, since Tally can duplicate it for the same reason
+* Modifying a master through _name which does not exist in Tally is now rejected with a clear message, instead of quietly creating a new master under the old name
+* Tag ORIGINALNAME of a unit carried the new name rather than the existing one, so Tally could not match the record being renamed
+
 ### Version: v7.6.1 [21-Aug-2026]
 
 Added:

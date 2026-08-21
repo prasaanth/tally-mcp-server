@@ -15,7 +15,7 @@
             <REQUESTDATA>
                 {% for master in masters %}
                 <TALLYMESSAGE>
-                    <COSTCENTRE NAME="{{ (master._name or master.name) | escape }}" ACTION="Create">
+                    <COSTCENTRE NAME="{{ (master._name or master.name) | escape }}" ACTION="{{ master.action }}">
                         <LANGUAGENAME.LIST>
                             <NAME.LIST>
                                 <NAME>{{ master.name | escape }}</NAME>
