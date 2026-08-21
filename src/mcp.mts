@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import dotenv from 'dotenv';
@@ -16,7 +19,53 @@ const lstCostingMethod = ['Avg. Cost', 'FIFO', 'FIFO Perpetual', 'Last Purchase 
 
 const lstBillType = ['New Ref', 'Agst Ref', 'Advance', 'On Account'];
 
-const lstVoucherView = ['Accounting Voucher View', 'Invoice Voucher View', 'Inventory Voucher View'];
+const lstVoucherView = ['Accounting Voucher View', 'Invoice Voucher View', 'Inventory Voucher View', 'Consumption Voucher View'];
+
+const lstNumberingMethod = ['Automatic', 'Automatic (Manual Override)', 'Manual', 'Multi-User Auto'];
+
+const lstPayHeadType = ['Earnings for Employees', 'Deductions from Employees', 'Employees Statutory Deductions', 'Employers Statutory Contributions', 'Employers Other Charges', 'Bonus', 'Gratuity', 'Loans and Advances', 'Reimbursements to Employees', 'Not Applicable'];
+
+const lstCalculationType = ['On Attendance', 'As Computed Value', 'Flat Rate', 'On Production', 'As User Defined Value'];
+
+const lstRoundingMethod = ['Not Applicable', 'Normal Rounding', 'Downward Rounding', 'Upward Rounding'];
+
+const lstAttendanceNature = ['Attendance/Leave with Pay', 'Leave without Pay', 'User Defined'];
+
+/**
+ * Shape of a single inventory line, shared by the regular inventory entries of an invoice
+ * and by the source / destination entries of a stock journal
+ */
+const inventoryEntrySchema = z.object({
+  stockItemName: z.string().describe('stock item name, validate it using list-master tool with collection as stockitem'),
+  quantity: z.number().describe('quantity of the stock item as an absolute positive number, inward or outward movement is derived by Tally from the voucher type and from the list the entry belongs to'),
+  rate: z.number().optional().describe('optional rate per unit of the stock item'),
+  unit: z.string().optional().describe('optional unit of measurement of the quantity and rate, defaults to the base unit of the stock item'),
+  amount: z.number().describe('value of this inventory entry, debit is negative (stock coming in, like purchase or production) and credit is positive (stock going out, like sales or consumption)'),
+  godownName: z.string().optional().describe('optional godown name from which stock moves out or into which stock moves in, validate it using list-master tool with collection as godown'),
+  batchName: z.string().optional().describe('optional batch name, applicable for a stock item maintained batch wise'),
+  accountingLedger: z.string().optional().describe('sales, purchase or stock adjustment ledger to which the value of this inventory entry is posted, mandatory for an invoice like Sales or Purchase, validate it using list-master tool with collection as ledger')
+});
+
+/**
+ * Collections which represent a master and can therefore be listed by name.
+ * Derived from the collection definitions so that the two can never drift apart,
+ * which used to leave list-master offering collections it could not resolve
+ */
+const lstMasterCollection = lstCollections.filter((collection) => collection !== 'Bill').map((collection) => collection.toLowerCase());
+
+/**
+ * Version reported to the MCP client, read from package.json of the deployment so that
+ * the build actually running can be identified from the client
+ */
+function resolveServerVersion(): string {
+  try {
+    const pathPackageJson = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'package.json');
+    const version = JSON.parse(readFileSync(pathPackageJson, 'utf8')).version;
+    return typeof version === 'string' ? version : '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
 
 /**
  * Converts a thrown value into a readable message, since JSON.stringify() on an
@@ -106,7 +155,7 @@ export async function registerMcpServer(): Promise<McpServer> {
   const mcpServer = new McpServer({
     name: 'Tally Prime MCP Server',
     title: 'Tally Prime',
-    version: '7.0.0'
+    version: resolveServerVersion()
   });
 
 
@@ -325,7 +374,7 @@ export async function registerMcpServer(): Promise<McpServer> {
       description: `fetches list of masters from Tally Prime collection e.g. group, ledger, vouchertype, unit, godown, stockgroup, stockitem, costcategory, costcentre, attendancetype, company, currency, gstin, gstclassification returns output in JSON string array in the property list`,
       inputSchema: {
         targetCompany: z.string().optional().describe('optional company name. leave it blank or skip this to choose for default company. validate it using list-master tool with collection as company if specified'),
-        collection: z.enum(['group', 'ledger', 'vouchertype', 'unit', 'godown', 'stockgroup', 'stockitem', 'costcategory', 'costcentre', 'attendancetype', 'company', 'currency', 'gstin', 'gstclassification']),
+        collection: z.enum(lstMasterCollection).describe('master collection whose names are to be listed'),
         containsFilter: z.string().optional().describe('optional filter to apply on name field with contains operator to filter results with respective name value or keywords, case insensitive')
       },
       annotations: {
@@ -1370,7 +1419,7 @@ export async function registerMcpServer(): Promise<McpServer> {
       'voucher-create-update',
       {
         title: 'Create or Update Voucher',
-        description: `creates accounting and / or inventory vouchers (transactions like payment, receipt, contra, journal, sales, purchase, debit note, credit note, delivery note, receipt note) in Tally Prime, or updates an existing voucher when its guid is supplied. amount convention is debit is negative and credit is positive, and the sum of all amounts of a voucher must be zero. quantity is always an absolute positive number, since inward or outward movement is derived by Tally from the voucher type. when guid is supplied the voucher is fully replaced by the supplied content, so send every entry of that voucher and not just the changed one. guid of an existing voucher can be picked from the output of ledger-account tool. returns count of created and / or altered records`,
+        description: `creates accounting and / or inventory vouchers (transactions like payment, receipt, contra, journal, sales, purchase, debit note, credit note, delivery note, receipt note, stock journal) in Tally Prime, or updates an existing voucher when its guid is supplied. amount convention is debit is negative and credit is positive, and the sum of all amounts of a voucher must be zero. quantity is always an absolute positive number, since inward or outward movement is derived by Tally from the voucher type. when guid is supplied the voucher is fully replaced by the supplied content, so send every entry of that voucher and not just the changed one. guid of an existing voucher can be picked from the output of ledger-account tool. returns count of created and / or altered records`,
         inputSchema: {
           targetCompany: z.string().optional().describe('optional company name. leave it blank or skip this to choose for default company. validate it using list-master tool with collection as company if specified'),
           vouchers: z.array(z.object({
@@ -1398,16 +1447,9 @@ export async function registerMcpServer(): Promise<McpServer> {
                 amount: z.number().describe('amount allocated to this cost centre, debit is negative and credit is positive, sum of all cost centre allocations must equal amount of the ledger entry')
               })).optional().describe('optional cost centre allocation, applicable for a ledger on which cost centres are enabled')
             })).describe('accounting entries of the voucher. leave it as an empty array only for a pure inventory voucher like Delivery Note or Receipt Note which carries no accounting effect'),
-            inventoryEntries: z.array(z.object({
-              stockItemName: z.string().describe('stock item name, validate it using list-master tool with collection as stockitem'),
-              quantity: z.number().describe('quantity of the stock item as an absolute positive number, inward or outward movement is derived by Tally from the voucher type'),
-              rate: z.number().optional().describe('optional rate per unit of the stock item'),
-              unit: z.string().optional().describe('optional unit of measurement of the quantity and rate, defaults to the base unit of the stock item'),
-              amount: z.number().describe('value of this inventory entry, debit is negative (inward like purchase) and credit is positive (outward like sales)'),
-              godownName: z.string().optional().describe('optional godown name from which stock moves out or into which stock moves in, validate it using list-master tool with collection as godown'),
-              batchName: z.string().optional().describe('optional batch name, applicable for a stock item maintained batch wise'),
-              accountingLedger: z.string().optional().describe('sales, purchase or stock adjustment ledger to which the value of this inventory entry is posted, mandatory for an invoice like Sales or Purchase, validate it using list-master tool with collection as ledger')
-            })).optional().describe('optional inventory entries of the voucher, applicable for inventory affecting voucher types like Sales, Purchase, Delivery Note, Receipt Note')
+            inventoryEntries: z.array(inventoryEntrySchema).optional().describe('optional inventory entries of the voucher, applicable for inventory affecting voucher types like Sales, Purchase, Delivery Note, Receipt Note. do not use it for a Stock Journal, which uses sourceEntries and destinationEntries instead'),
+            sourceEntries: z.array(inventoryEntrySchema).optional().describe('source or consumption side of a Stock Journal / Manufacturing Journal, i.e. the stock which is consumed or transferred out. amount is positive (credit) for stock going out'),
+            destinationEntries: z.array(inventoryEntrySchema).optional().describe('destination or production side of a Stock Journal / Manufacturing Journal, i.e. the stock which is produced or transferred in. amount is negative (debit) for stock coming in')
           })).min(1).describe('array of vouchers to create or update')
         },
         annotations: {
@@ -1429,7 +1471,23 @@ export async function registerMcpServer(): Promise<McpServer> {
 
           const lstVoucherTypeName = await resolveMasterNames('VoucherType', args.vouchers.map((voucher) => voucher.voucherType), args.targetCompany);
 
-          const lstStockItemName = await resolveMasterNames('StockItem', args.vouchers.flatMap((voucher) => (voucher.inventoryEntries || []).map((item) => item.stockItemName)), args.targetCompany);
+          const lstStockItemName = await resolveMasterNames('StockItem', args.vouchers.flatMap((voucher) => [
+            ...(voucher.inventoryEntries || []),
+            ...(voucher.sourceEntries || []),
+            ...(voucher.destinationEntries || [])
+          ].map((item) => item.stockItemName)), args.targetCompany);
+
+          // every inventory line is normalised the same way, whichever list it belongs to
+          const mapInventoryEntry = (item: z.infer<typeof inventoryEntrySchema>) => ({
+            stockItemName: lstStockItemName.get(item.stockItemName),
+            quantity: Math.abs(item.quantity),
+            rate: item.rate,
+            unit: item.unit,
+            amount: roundAmount(item.amount),
+            godownName: item.godownName,
+            batchName: item.batchName,
+            accountingLedger: item.accountingLedger ? lstLedgerName.get(item.accountingLedger) : undefined
+          });
 
           let lstObjVoucher: any[] = [];
 
@@ -1450,16 +1508,9 @@ export async function registerMcpServer(): Promise<McpServer> {
               }))
             }));
 
-            const lstInventoryEntry = (voucher.inventoryEntries || []).map((item) => ({
-              stockItemName: lstStockItemName.get(item.stockItemName),
-              quantity: Math.abs(item.quantity),
-              rate: item.rate,
-              unit: item.unit,
-              amount: roundAmount(item.amount),
-              godownName: item.godownName,
-              batchName: item.batchName,
-              accountingLedger: item.accountingLedger ? lstLedgerName.get(item.accountingLedger) : undefined
-            }));
+            const lstInventoryEntry = (voucher.inventoryEntries || []).map(mapInventoryEntry);
+            const lstSourceEntry = (voucher.sourceEntries || []).map(mapInventoryEntry);
+            const lstDestinationEntry = (voucher.destinationEntries || []).map(mapInventoryEntry);
 
             // Tally rejects an unbalanced voucher, so it is validated before the request is fired
             if (lstLedgerEntry.length > 0) {
@@ -1499,7 +1550,9 @@ export async function registerMcpServer(): Promise<McpServer> {
 
             let objectView = voucher.objectView;
             if (!objectView) {
-              if (lstInventoryEntry.length > 0)
+              if (lstSourceEntry.length > 0 || lstDestinationEntry.length > 0)
+                objectView = 'Consumption Voucher View';
+              else if (lstInventoryEntry.length > 0)
                 objectView = lstLedgerEntry.length > 0 ? 'Invoice Voucher View' : 'Inventory Voucher View';
               else
                 objectView = 'Accounting Voucher View';
@@ -1517,7 +1570,9 @@ export async function registerMcpServer(): Promise<McpServer> {
               isInvoice: objectView === 'Invoice Voucher View',
               objectView,
               ledgerEntries: lstLedgerEntry,
-              inventoryEntries: lstInventoryEntry
+              inventoryEntries: lstInventoryEntry,
+              sourceEntries: lstSourceEntry,
+              destinationEntries: lstDestinationEntry
             });
           }
 
@@ -1568,6 +1623,555 @@ export async function registerMcpServer(): Promise<McpServer> {
           }));
 
           let result = await deleteVouchers(lstObjVoucher, args.targetCompany);
+
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result) }]
+          };
+        } catch (err) {
+          return {
+            isError: true,
+            content: [{ type: 'text', text: formatError(err) }]
+          };
+        }
+      }
+    );
+
+    mcpServer.registerTool(
+      'company-create-update',
+      {
+        title: 'Create or Update Company',
+        description: `creates a new company in Tally Prime or updates details of an existing one, returns count of created and / or altered records. note that company creation over the XML interface is dependent on the Tally Prime edition and its security settings, so if this is rejected the company has to be created from the Tally screen (Company > Create) and can then be updated by this tool`,
+        inputSchema: {
+          masters: z.array(z.object({
+            name: z.string().describe('company name, or the new name when renaming an existing company'),
+            _name: z.string().optional().describe('existing company name to modify / rename, validate it using list-master tool with collection as company'),
+            mailingName: z.string().optional().describe('optional name of the company for mailing and printing purpose, defaults to the company name'),
+            address: z.array(z.string()).optional().describe('optional address of the company as an array of address lines'),
+            country: z.string().describe('country of the company, validate it using query-option-values tool with input optionName as country-state'),
+            state: z.string().describe('state of the company, validate it using query-option-values tool with input optionName as country-state'),
+            pincode: z.string().optional().describe('optional pincode or ZIP code of the company'),
+            phoneNumber: z.string().optional().describe('optional contact number of the company'),
+            email: z.string().optional().describe('optional email address of the company'),
+            booksFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('date from which books of accounts begin, which also becomes the financial year start of the company'),
+            isInventory: z.boolean().optional().describe('optional, true to maintain accounts along with inventory, default is false which maintains accounts only'),
+            currencySymbol: z.string().optional().describe('optional base currency symbol of the company like Rs'),
+            currencyFormalName: z.string().optional().describe('optional formal name of the base currency like INR, mandatory when currencySymbol is specified'),
+            gstin: z.string().optional().describe('optional GSTIN or GST number of the company'),
+            incomeTaxNumber: z.string().optional().describe('optional PAN or income tax number of the company')
+          })).min(1).describe('array of company objects to create or update')
+        },
+        annotations: {
+          readOnlyHint: false,
+          openWorldHint: false,
+          destructiveHint: true,
+          idempotentHint: true
+        }
+      },
+      async (args) => {
+        try {
+          const objIncompleteCurrency = args.masters.find((master) => master.currencySymbol && !master.currencyFormalName);
+          if (objIncompleteCurrency) {
+            return {
+              isError: true,
+              content: [{ type: 'text', text: `Company ${objIncompleteCurrency.name} specifies currencySymbol, so currencyFormalName is mandatory` }]
+            };
+          }
+
+          let lstObjMasters = args.masters.map((master) => ({
+            ...master,
+            booksFrom: parseInputDate(master.booksFrom)
+          }));
+
+          let objMasterInput: Map<string, any> = new Map();
+          objMasterInput.set('masters', lstObjMasters);
+
+          let result = await importMasters('master-company', objMasterInput);
+
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result) }]
+          };
+        } catch (err) {
+          return {
+            isError: true,
+            content: [{ type: 'text', text: formatError(err) }]
+          };
+        }
+      }
+    );
+
+    mcpServer.registerTool(
+      'stock-category-create-update',
+      {
+        title: 'Create or Update Stock Category',
+        description: `create or update stock category, which is a parallel classification of stock items cutting across stock groups, returns count of created and / or altered records`,
+        inputSchema: {
+          targetCompany: z.string().optional().describe('optional company name. leave it blank or skip this to choose for default company. validate it using list-master tool with collection as company if specified'),
+          masters: z.array(z.object({
+            name: z.string().describe('stock category name, or the new name when renaming an existing stock category'),
+            _name: z.string().optional().describe('existing stock category name to modify / rename, validate it using list-master tool with collection as stockcategory'),
+            parent: z.string().optional().describe('parent stock category name under which this category is nested. skip it to create a primary stock category')
+          })).min(1).describe('array of stock category objects to create or update')
+        },
+        annotations: {
+          readOnlyHint: false,
+          openWorldHint: false,
+          destructiveHint: true,
+          idempotentHint: true
+        }
+      },
+      async (args) => {
+        try {
+          let objMasterInput: Map<string, any> = new Map();
+          objMasterInput.set('masters', args.masters);
+          if (args.targetCompany) {
+            objMasterInput.set('targetCompany', args.targetCompany);
+          }
+
+          let result = await importMasters('master-stock-category', objMasterInput);
+
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result) }]
+          };
+        } catch (err) {
+          return {
+            isError: true,
+            content: [{ type: 'text', text: formatError(err) }]
+          };
+        }
+      }
+    );
+
+    mcpServer.registerTool(
+      'voucher-type-create-update',
+      {
+        title: 'Create or Update Voucher Type',
+        description: `create or update a voucher type in Tally Prime, which is always derived from one of the predefined voucher types like Sales, Purchase, Payment, Receipt, Journal, Contra, Stock Journal, returns count of created and / or altered records`,
+        inputSchema: {
+          targetCompany: z.string().optional().describe('optional company name. leave it blank or skip this to choose for default company. validate it using list-master tool with collection as company if specified'),
+          masters: z.array(z.object({
+            name: z.string().describe('voucher type name, or the new name when renaming an existing voucher type'),
+            _name: z.string().optional().describe('existing voucher type name to modify / rename, validate it using list-master tool with collection as vouchertype'),
+            parent: z.string().describe('predefined voucher type from which this voucher type is derived like Sales, Purchase, Payment, Receipt, Contra, Journal, Credit Note, Debit Note, Delivery Note, Receipt Note, Stock Journal, Physical Stock. validate it using list-master tool with collection as vouchertype'),
+            numberingMethod: z.enum(lstNumberingMethod).optional().describe('optional method of numbering vouchers of this type, default is Automatic'),
+            isOptional: z.boolean().optional().describe('optional, true to make vouchers of this type optional by default so that they do not affect books'),
+            affectsStock: z.boolean().optional().describe('optional, true if vouchers of this type affect inventory'),
+            preventDuplicates: z.boolean().optional().describe('optional, true to stop Tally from accepting a duplicate voucher number'),
+            useCommonNarration: z.boolean().optional().describe('optional, true to allow a narration for the whole voucher'),
+            narrationsAtLineLevel: z.boolean().optional().describe('optional, true to allow a narration for every ledger line of the voucher'),
+            printAfterSave: z.boolean().optional().describe('optional, true to print the voucher immediately after saving'),
+            prefix: z.string().optional().describe('optional prefix applied to the voucher number like INV/, applicable when numberingMethod is Automatic')
+          })).min(1).describe('array of voucher type objects to create or update')
+        },
+        annotations: {
+          readOnlyHint: false,
+          openWorldHint: false,
+          destructiveHint: true,
+          idempotentHint: true
+        }
+      },
+      async (args) => {
+        try {
+          // the parent has to be one of the voucher types Tally already knows about
+          const lstParentName = await resolveMasterNames('VoucherType', args.masters.map((master) => master.parent), args.targetCompany);
+
+          const isPrefixUsed = args.masters.some((master) => master.prefix !== undefined);
+          const booksBeginFrom = isPrefixUsed ? await resolveBooksBeginFrom(args.targetCompany) : undefined;
+
+          let lstObjMasters = args.masters.map((master) => {
+            let objVoucherType: any = { ...master, parent: lstParentName.get(master.parent) };
+            if (master.prefix !== undefined) {
+              objVoucherType.prefixDetails = { applicableFrom: booksBeginFrom, prefix: master.prefix };
+            }
+            return objVoucherType;
+          });
+
+          let objMasterInput: Map<string, any> = new Map();
+          objMasterInput.set('masters', lstObjMasters);
+          if (args.targetCompany) {
+            objMasterInput.set('targetCompany', args.targetCompany);
+          }
+
+          let result = await importMasters('master-voucher-type', objMasterInput);
+
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result) }]
+          };
+        } catch (err) {
+          return {
+            isError: true,
+            content: [{ type: 'text', text: formatError(err) }]
+          };
+        }
+      }
+    );
+
+    mcpServer.registerTool(
+      'currency-create-update',
+      {
+        title: 'Create or Update Currency',
+        description: `create or update a currency in Tally Prime, used for recording transactions in a foreign currency, returns count of created and / or altered records`,
+        inputSchema: {
+          targetCompany: z.string().optional().describe('optional company name. leave it blank or skip this to choose for default company. validate it using list-master tool with collection as company if specified'),
+          masters: z.array(z.object({
+            name: z.string().describe('symbol of the currency like $ or Rs, this is the identity of a currency in Tally'),
+            _name: z.string().optional().describe('existing currency symbol to modify / rename, validate it using list-master tool with collection as currency'),
+            formalName: z.string().optional().describe('optional formal name of the currency like US Dollar for symbol $'),
+            expandedSymbol: z.string().optional().describe('optional symbol in words used while printing amount in words like Dollars'),
+            decimalSymbol: z.string().optional().describe('optional name of the decimal portion like Cents or Paise'),
+            decimalPlaces: z.number().int().min(0).max(4).optional().describe('optional number of decimal places, default is 2'),
+            isSymbolSuffixed: z.boolean().optional().describe('optional, true to print the symbol after the amount instead of before it'),
+            hasSpaceBetweenAmount: z.boolean().optional().describe('optional, true to leave a space between the symbol and the amount'),
+            showInMillions: z.boolean().optional().describe('optional, true to show amounts in millions instead of lakhs / crores')
+          })).min(1).describe('array of currency objects to create or update')
+        },
+        annotations: {
+          readOnlyHint: false,
+          openWorldHint: false,
+          destructiveHint: true,
+          idempotentHint: true
+        }
+      },
+      async (args) => {
+        try {
+          let objMasterInput: Map<string, any> = new Map();
+          objMasterInput.set('masters', args.masters);
+          if (args.targetCompany) {
+            objMasterInput.set('targetCompany', args.targetCompany);
+          }
+
+          let result = await importMasters('master-currency', objMasterInput);
+
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result) }]
+          };
+        } catch (err) {
+          return {
+            isError: true,
+            content: [{ type: 'text', text: formatError(err) }]
+          };
+        }
+      }
+    );
+
+    mcpServer.registerTool(
+      'gst-classification-create-update',
+      {
+        title: 'Create or Update GST Classification',
+        description: `create or update a GST classification, which is a reusable set of HSN / SAC and GST rate details that can be applied on many stock items and ledgers at once, returns count of created and / or altered records`,
+        inputSchema: {
+          targetCompany: z.string().optional().describe('optional company name. leave it blank or skip this to choose for default company. validate it using list-master tool with collection as company if specified'),
+          masters: z.array(z.object({
+            name: z.string().describe('name of the GST classification, or the new name when renaming an existing one'),
+            _name: z.string().optional().describe('existing GST classification name to modify / rename, validate it using list-master tool with collection as gstclassification'),
+            hsnCode: z.string().optional().describe('optional HSN code for goods or SAC code for services'),
+            hsnDescription: z.string().optional().describe('optional description of the HSN or SAC code'),
+            typeOfSupply: z.enum(['Goods', 'Services']).optional().describe('GST type of supply, default is Goods'),
+            taxability: z.enum(['Taxable', 'Exempt', 'Nil Rated']).optional().describe('GST taxability, default is Taxable'),
+            rate: z.number().min(0).max(100).describe('total GST rate in percentage, which is split internally as half into CGST and half into SGST and full into IGST')
+          })).min(1).describe('array of GST classification objects to create or update')
+        },
+        annotations: {
+          readOnlyHint: false,
+          openWorldHint: false,
+          destructiveHint: true,
+          idempotentHint: true
+        }
+      },
+      async (args) => {
+        try {
+          // GST details are applicable from a date, for which Tally expects books begin date
+          const booksBeginFrom = await resolveBooksBeginFrom(args.targetCompany);
+
+          let lstObjMasters = args.masters.map((master) => ({
+            name: master.name,
+            _name: master._name,
+            applicableFrom: booksBeginFrom,
+            hsnCode: master.hsnCode,
+            hsnDescription: master.hsnDescription || master.hsnCode,
+            typeOfSupply: master.typeOfSupply || 'Goods',
+            taxability: master.taxability || 'Taxable',
+            cgstRate: master.rate / 2,
+            sgstRate: master.rate / 2,
+            igstRate: master.rate
+          }));
+
+          let objMasterInput: Map<string, any> = new Map();
+          objMasterInput.set('masters', lstObjMasters);
+          if (args.targetCompany) {
+            objMasterInput.set('targetCompany', args.targetCompany);
+          }
+
+          let result = await importMasters('master-gst-classification', objMasterInput);
+
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result) }]
+          };
+        } catch (err) {
+          return {
+            isError: true,
+            content: [{ type: 'text', text: formatError(err) }]
+          };
+        }
+      }
+    );
+
+    mcpServer.registerTool(
+      'budget-create-update',
+      {
+        title: 'Create or Update Budget',
+        description: `create or update a budget in Tally Prime for a period, with closing balance targets against groups, ledgers and cost centres. amount convention is debit is negative and credit is positive, so an expense budget is a negative amount. returns count of created and / or altered records`,
+        inputSchema: {
+          targetCompany: z.string().optional().describe('optional company name. leave it blank or skip this to choose for default company. validate it using list-master tool with collection as company if specified'),
+          masters: z.array(z.object({
+            name: z.string().describe('budget name, or the new name when renaming an existing budget'),
+            _name: z.string().optional().describe('existing budget name to modify / rename, validate it using list-master tool with collection as budget'),
+            parent: z.string().optional().describe('optional parent budget name under which this budget is nested'),
+            fromDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('start date of the budget period'),
+            toDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('end date of the budget period'),
+            groupBudgets: z.array(z.object({
+              name: z.string().describe('group name, validate it using list-master tool with collection as group'),
+              amount: z.number().describe('closing balance budgeted for the group, debit is negative and credit is positive'),
+              isNettBalance: z.boolean().optional().describe('optional, true to nett debit and credit balances of the group while comparing against the budget')
+            })).optional().describe('optional budget targets against groups'),
+            ledgerBudgets: z.array(z.object({
+              name: z.string().describe('ledger name, validate it using list-master tool with collection as ledger'),
+              amount: z.number().describe('closing balance budgeted for the ledger, debit is negative and credit is positive')
+            })).optional().describe('optional budget targets against ledgers'),
+            costCentreBudgets: z.array(z.object({
+              name: z.string().describe('cost centre name, validate it using list-master tool with collection as costcentre'),
+              amount: z.number().describe('closing balance budgeted for the cost centre, debit is negative and credit is positive')
+            })).optional().describe('optional budget targets against cost centres')
+          })).min(1).describe('array of budget objects to create or update')
+        },
+        annotations: {
+          readOnlyHint: false,
+          openWorldHint: false,
+          destructiveHint: true,
+          idempotentHint: true
+        }
+      },
+      async (args) => {
+        try {
+          const objEmptyBudget = args.masters.find((master) => !master.groupBudgets?.length && !master.ledgerBudgets?.length && !master.costCentreBudgets?.length);
+          if (objEmptyBudget) {
+            return {
+              isError: true,
+              content: [{ type: 'text', text: `Budget ${objEmptyBudget.name} carries no target. Specify at least one of groupBudgets, ledgerBudgets or costCentreBudgets` }]
+            };
+          }
+
+          // referenced masters are validated upfront, since Tally rejects the whole budget otherwise
+          const lstGroupName = await resolveMasterNames('Group', args.masters.flatMap((master) => (master.groupBudgets || []).map((item) => item.name)), args.targetCompany);
+          const lstLedgerName = await resolveMasterNames('Ledger', args.masters.flatMap((master) => (master.ledgerBudgets || []).map((item) => item.name)), args.targetCompany);
+          const lstCostCentreName = await resolveMasterNames('CostCentre', args.masters.flatMap((master) => (master.costCentreBudgets || []).map((item) => item.name)), args.targetCompany);
+
+          let lstObjMasters = args.masters.map((master) => ({
+            name: master.name,
+            _name: master._name,
+            parent: master.parent,
+            fromDate: parseInputDate(master.fromDate),
+            toDate: parseInputDate(master.toDate),
+            groupBudgets: (master.groupBudgets || []).map((item) => ({ name: lstGroupName.get(item.name), amount: roundAmount(item.amount), isNettBalance: item.isNettBalance })),
+            ledgerBudgets: (master.ledgerBudgets || []).map((item) => ({ name: lstLedgerName.get(item.name), amount: roundAmount(item.amount) })),
+            costCentreBudgets: (master.costCentreBudgets || []).map((item) => ({ name: lstCostCentreName.get(item.name), amount: roundAmount(item.amount) }))
+          }));
+
+          let objMasterInput: Map<string, any> = new Map();
+          objMasterInput.set('masters', lstObjMasters);
+          if (args.targetCompany) {
+            objMasterInput.set('targetCompany', args.targetCompany);
+          }
+
+          let result = await importMasters('master-budget', objMasterInput);
+
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result) }]
+          };
+        } catch (err) {
+          return {
+            isError: true,
+            content: [{ type: 'text', text: formatError(err) }]
+          };
+        }
+      }
+    );
+
+    mcpServer.registerTool(
+      'pay-head-create-update',
+      {
+        title: 'Create or Update Pay Head',
+        description: `create or update a payroll pay head in Tally Prime, which is the earning, deduction or contribution component used while processing salary. a pay head is internally a ledger, so it also appears in list-master with collection as ledger. returns count of created and / or altered records`,
+        inputSchema: {
+          targetCompany: z.string().optional().describe('optional company name. leave it blank or skip this to choose for default company. validate it using list-master tool with collection as company if specified'),
+          masters: z.array(z.object({
+            name: z.string().describe('pay head name, or the new name when renaming an existing pay head'),
+            _name: z.string().optional().describe('existing pay head name to modify / rename, validate it using list-master tool with collection as ledger'),
+            parent: z.string().describe('group under which the pay head is nested, typically Indirect Expenses for earnings and Current Liabilities for deductions. validate it using list-master tool with collection as group'),
+            payHeadType: z.enum(lstPayHeadType).describe('nature of the pay head'),
+            isDebit: z.boolean().describe('true if the pay head is a debit or expense to the company (typical for earnings), false if it is a credit or liability (typical for deductions)'),
+            payslipName: z.string().optional().describe('optional name to be printed on the payslip, defaults to the pay head name'),
+            calculationType: z.enum(lstCalculationType).optional().describe('optional method by which the pay head amount is computed'),
+            calculationPeriod: z.enum(['Days', 'Weeks', 'Months', 'Fortnights']).optional().describe('optional period over which the pay head is calculated, applicable when calculationType is On Attendance'),
+            attendanceType: z.string().optional().describe('optional attendance or production type on which the pay head is calculated, applicable when calculationType is On Attendance or On Production. validate it using list-master tool with collection as attendancetype'),
+            appropriateFor: z.string().optional().describe('optional statutory pay type this pay head is appropriated for like Salary'),
+            roundingMethod: z.enum(lstRoundingMethod).optional().describe('optional rounding applied on the computed amount'),
+            roundingLimit: z.number().int().min(0).optional().describe('optional rounding limit, applicable when roundingMethod is other than Not Applicable, default is 1'),
+            isBillWise: z.boolean().optional().describe('optional, true to maintain bill wise details on the pay head, typically used for loans and advances')
+          })).min(1).describe('array of pay head objects to create or update')
+        },
+        annotations: {
+          readOnlyHint: false,
+          openWorldHint: false,
+          destructiveHint: true,
+          idempotentHint: true
+        }
+      },
+      async (args) => {
+        try {
+          const lstParentName = await resolveMasterNames('Group', args.masters.map((master) => master.parent), args.targetCompany);
+
+          let lstObjMasters = args.masters.map((master) => ({
+            ...master,
+            parent: lstParentName.get(master.parent),
+            roundingLimit: master.roundingLimit === undefined ? 1 : master.roundingLimit
+          }));
+
+          let objMasterInput: Map<string, any> = new Map();
+          objMasterInput.set('masters', lstObjMasters);
+          if (args.targetCompany) {
+            objMasterInput.set('targetCompany', args.targetCompany);
+          }
+
+          let result = await importMasters('master-pay-head', objMasterInput);
+
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result) }]
+          };
+        } catch (err) {
+          return {
+            isError: true,
+            content: [{ type: 'text', text: formatError(err) }]
+          };
+        }
+      }
+    );
+
+    mcpServer.registerTool(
+      'employee-create-update',
+      {
+        title: 'Create or Update Employee',
+        description: `create or update a payroll employee or employee group in Tally Prime. Tally stores an employee as a cost centre flagged for payroll, so employees also appear in list-master with collection as costcentre. returns count of created and / or altered records`,
+        inputSchema: {
+          targetCompany: z.string().optional().describe('optional company name. leave it blank or skip this to choose for default company. validate it using list-master tool with collection as company if specified'),
+          masters: z.array(z.object({
+            name: z.string().describe('employee or employee group name, or the new name when renaming an existing one'),
+            _name: z.string().optional().describe('existing employee name to modify / rename, validate it using list-master tool with collection as employee'),
+            isGroup: z.boolean().optional().describe('optional, true to create an employee group instead of an employee, default is false'),
+            category: z.string().optional().describe('cost category under which the employee is nested, default is Primary Cost Category'),
+            parent: z.string().optional().describe('optional employee group under which the employee is nested, validate it using list-master tool with collection as employee'),
+            dateOfJoining: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('date of joining of the employee, mandatory unless isGroup is true'),
+            dateOfRelease: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('optional date of resignation or release of the employee'),
+            employeeNumber: z.string().optional().describe('optional employee code or number'),
+            designation: z.string().optional().describe('optional designation of the employee'),
+            functionName: z.string().optional().describe('optional function or department of the employee'),
+            location: z.string().optional().describe('optional work location of the employee'),
+            gender: z.enum(['Male', 'Female', 'Other']).optional().describe('optional gender of the employee'),
+            dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('optional date of birth of the employee'),
+            mobileNumber: z.string().optional().describe('optional contact number of the employee'),
+            email: z.string().optional().describe('optional email address of the employee'),
+            panNumber: z.string().optional().describe('optional PAN or income tax number of the employee'),
+            bankDetails: z.object({
+              bankName: z.string().describe('name of the bank'),
+              accountNumber: z.string().describe('bank account number of the employee'),
+              ifscCode: z.string().describe('IFSC code of the bank branch')
+            }).optional().describe('optional bank details of the employee used for salary payment')
+          })).min(1).describe('array of employee objects to create or update')
+        },
+        annotations: {
+          readOnlyHint: false,
+          openWorldHint: false,
+          destructiveHint: true,
+          idempotentHint: true
+        }
+      },
+      async (args) => {
+        try {
+          const objMissingJoining = args.masters.find((master) => !master.isGroup && !master.dateOfJoining);
+          if (objMissingJoining) {
+            return {
+              isError: true,
+              content: [{ type: 'text', text: `Employee ${objMissingJoining.name} is missing dateOfJoining, which Tally needs for every employee. Set isGroup to true if an employee group was intended` }]
+            };
+          }
+
+          let lstObjMasters = args.masters.map((master) => ({
+            ...master,
+            dateOfJoining: master.dateOfJoining ? parseInputDate(master.dateOfJoining) : undefined,
+            dateOfRelease: master.dateOfRelease ? parseInputDate(master.dateOfRelease) : undefined,
+            dateOfBirth: master.dateOfBirth ? parseInputDate(master.dateOfBirth) : undefined
+          }));
+
+          let objMasterInput: Map<string, any> = new Map();
+          objMasterInput.set('masters', lstObjMasters);
+          if (args.targetCompany) {
+            objMasterInput.set('targetCompany', args.targetCompany);
+          }
+
+          let result = await importMasters('master-employee', objMasterInput);
+
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result) }]
+          };
+        } catch (err) {
+          return {
+            isError: true,
+            content: [{ type: 'text', text: formatError(err) }]
+          };
+        }
+      }
+    );
+
+    mcpServer.registerTool(
+      'attendance-type-create-update',
+      {
+        title: 'Create or Update Attendance Type',
+        description: `create or update a payroll attendance, leave or production type in Tally Prime like Present, Absent, Overtime or Piece Production, returns count of created and / or altered records`,
+        inputSchema: {
+          targetCompany: z.string().optional().describe('optional company name. leave it blank or skip this to choose for default company. validate it using list-master tool with collection as company if specified'),
+          masters: z.array(z.object({
+            name: z.string().describe('attendance type name, or the new name when renaming an existing one'),
+            _name: z.string().optional().describe('existing attendance type name to modify / rename, validate it using list-master tool with collection as attendancetype'),
+            parent: z.string().optional().describe('optional parent attendance type under which this one is nested. skip it to create a primary attendance type'),
+            attendanceType: z.enum(lstAttendanceNature).describe('nature of the attendance type. use User Defined for a production type measured in a unit rather than in days'),
+            period: z.enum(['Days', 'Weeks', 'Months', 'Fortnights']).optional().describe('optional unit of the attendance period, default is Days. not applicable when attendanceType is User Defined'),
+            productionType: z.string().optional().describe('production type like Piece Production or Time Based Production, mandatory when attendanceType is User Defined'),
+            unit: z.string().optional().describe('unit of measurement for the production, mandatory when attendanceType is User Defined. validate it using list-master tool with collection as unit')
+          })).min(1).describe('array of attendance type objects to create or update')
+        },
+        annotations: {
+          readOnlyHint: false,
+          openWorldHint: false,
+          destructiveHint: true,
+          idempotentHint: true
+        }
+      },
+      async (args) => {
+        try {
+          const objIncompleteProduction = args.masters.find((master) => master.attendanceType === 'User Defined' && !(master.productionType && master.unit));
+          if (objIncompleteProduction) {
+            return {
+              isError: true,
+              content: [{ type: 'text', text: `Attendance type ${objIncompleteProduction.name} is User Defined, so productionType and unit are both mandatory` }]
+            };
+          }
+
+          let objMasterInput: Map<string, any> = new Map();
+          objMasterInput.set('masters', args.masters);
+          if (args.targetCompany) {
+            objMasterInput.set('targetCompany', args.targetCompany);
+          }
+
+          let result = await importMasters('master-attendance-type', objMasterInput);
 
           return {
             content: [{ type: 'text', text: JSON.stringify(result) }]

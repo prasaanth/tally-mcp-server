@@ -1,0 +1,54 @@
+<ENVELOPE>
+    <HEADER>
+        <TALLYREQUEST>Import Data</TALLYREQUEST>
+    </HEADER>
+    <BODY>
+        <IMPORTDATA>
+            <REQUESTDESC>
+                <REPORTNAME>All Masters</REPORTNAME>
+                <STATICVARIABLES>
+                    {% if targetCompany %}
+                    <SVCURRENTCOMPANY>{{ targetCompany | escape }}</SVCURRENTCOMPANY>
+                    {% endif %}
+                </STATICVARIABLES>
+            </REQUESTDESC>
+            <REQUESTDATA>
+                {% for master in masters %}
+                <TALLYMESSAGE>
+                    <LEDGER NAME="{{ (master._name or master.name) | escape }}" ACTION="Create">
+                        <LANGUAGENAME.LIST>
+                            <NAME.LIST>
+                                <NAME>{{ master.name | escape }}</NAME>
+                            </NAME.LIST>
+                        </LANGUAGENAME.LIST>
+                        <PARENT>{{ master.parent | escape }}</PARENT>
+                        <ISPAYROLLPAYHEAD>Yes</ISPAYROLLPAYHEAD>
+                        <PAYHEADTYPE>{{ master.payHeadType | escape }}</PAYHEADTYPE>
+                        <PAYSLIPNAME>{{ (master.payslipName or master.name) | escape }}</PAYSLIPNAME>
+                        <ISDEEMEDPOSITIVE>{{ "Yes" if master.isDebit else "No" }}</ISDEEMEDPOSITIVE>
+                        {% if master.calculationType %}
+                        <CALCTYPE>{{ master.calculationType | escape }}</CALCTYPE>
+                        {% endif %}
+                        {% if master.calculationPeriod %}
+                        <CALCPERIODTYPE>{{ master.calculationPeriod | escape }}</CALCPERIODTYPE>
+                        {% endif %}
+                        {% if master.appropriateFor %}
+                        <APPROPRIATEFOR>{{ master.appropriateFor | escape }}</APPROPRIATEFOR>
+                        {% endif %}
+                        {% if master.roundingMethod %}
+                        <ROUNDINGMETHOD>{{ master.roundingMethod | escape }}</ROUNDINGMETHOD>
+                        <ROUNDINGLIMIT>{{ master.roundingLimit }}</ROUNDINGLIMIT>
+                        {% endif %}
+                        {% if master.attendanceType %}
+                        <ATTENDANCETYPE>{{ master.attendanceType | escape }}</ATTENDANCETYPE>
+                        {% endif %}
+                        {% if master.isBillWise != undefined %}
+                        <ISBILLWISEON>{{ "Yes" if master.isBillWise else "No" }}</ISBILLWISEON>
+                        {% endif %}
+                    </LEDGER>
+                </TALLYMESSAGE>
+                {% endfor %}
+            </REQUESTDATA>
+        </IMPORTDATA>
+    </BODY>
+</ENVELOPE>

@@ -18,12 +18,12 @@ Port = 9000
 
 ## Download
 Avoid cloning repository directly. Utility is available for download (with required dependencies) on below link <br>
-[https://excelkida.com/resource/tally-mcp-server-v7.5.zip](https://excelkida.com/resource/tally-mcp-server-v7.5.zip)
+[https://excelkida.com/resource/tally-mcp-server-v7.6.zip](https://excelkida.com/resource/tally-mcp-server-v7.6.zip)
 
 One-click installer **extension** for **Claude Desktop**<br>
-[https://excelkida.com/resource/tally-mcp-server-v7.5.mcpb](https://excelkida.com/resource/tally-mcp-server-v7.5.mcpb)
+[https://excelkida.com/resource/tally-mcp-server-v7.6.mcpb](https://excelkida.com/resource/tally-mcp-server-v7.6.mcpb)
 
-Last updated: version **7.5** [10-Aug-2026]
+Last updated: version **7.6** [20-Aug-2026]
 
 Refer docs/CHANGELOG.md for details
 
@@ -110,7 +110,7 @@ This mode of setup is to be used, when using browser-based MCP client like ChatG
 
 ## Available Tools
 
-This server currently exposes 29 MCP tools. Tools that write back into Tally Prime (create / update / delete of masters and vouchers) can be hidden altogether via the `BLOCK_WRITE` setting described under Environment Variables.
+This server currently exposes 38 MCP tools. Tools that write back into Tally Prime (create / update / delete of masters and vouchers) can be hidden altogether via the `BLOCK_WRITE` setting described under Environment Variables.
 
 ### metadata-collection
 Returns metadata for supported collections.
@@ -531,7 +531,7 @@ Every object of `masters` supports:
 JSON result returned by import operation (count of created / altered records).
 
 ### voucher-create-update
-Create accounting and / or inventory vouchers (transactions like Payment, Receipt, Contra, Journal, Sales, Purchase, Credit Note, Debit Note, Delivery Note, Receipt Note), or update an existing voucher when its `guid` is supplied.
+Create accounting and / or inventory vouchers (transactions like Payment, Receipt, Contra, Journal, Sales, Purchase, Credit Note, Debit Note, Delivery Note, Receipt Note, Stock Journal), or update an existing voucher when its `guid` is supplied.
 
 Sign convention followed across the whole tool is **debit is negative and credit is positive**, and the sum of all amounts of a voucher must be **0**. Quantity is always an absolute positive number, since inward or outward movement is derived by Tally from the voucher type. Ledger, voucher type and stock item names are validated against Tally before the voucher is pushed, so a typo is reported back instead of being partially imported.
 
@@ -552,8 +552,10 @@ Every object of `vouchers` supports:
 |partyLedgerName (optional)|Party ledger of the voucher|
 |narration (optional)|Narration or remarks|
 |objectView (optional)|One of `Accounting Voucher View`, `Invoice Voucher View`, `Inventory Voucher View`. Derived automatically when skipped|
-|ledgerEntries|Accounting entries. Empty array only for a pure inventory voucher like Delivery Note|
-|inventoryEntries (optional)|Inventory entries for an inventory affecting voucher type|
+|ledgerEntries|Accounting entries. Empty array only for a pure inventory voucher like Delivery Note or Stock Journal|
+|inventoryEntries (optional)|Inventory entries for an inventory affecting voucher type. Not used by a Stock Journal|
+|sourceEntries (optional)|Consumption side of a Stock Journal / Manufacturing Journal, i.e. stock consumed or transferred out (amount positive)|
+|destinationEntries (optional)|Production side of a Stock Journal / Manufacturing Journal, i.e. stock produced or transferred in (amount negative)|
 
 Every object of `ledgerEntries` supports:
 |Property|Description|
@@ -589,6 +591,202 @@ Delete one (or more) vouchers from Tally permanently. This operation cannot be u
 
 **Output**
 JSON result returned by delete operation (count of deleted records).
+
+### company-create-update
+Create a new company, or update details of an existing one.
+
+*Note: company creation over the XML interface depends on the Tally Prime edition and its security settings. If Tally rejects it, create the company from the Tally screen (Company &gt; Create) and use this tool to update it thereafter.*
+
+**Input**
+|Argument|Description|
+|--|--|
+|masters|Array of company objects|
+
+Every object of `masters` supports:
+|Property|Description|
+|--|--|
+|name|Company name, or the new name when renaming|
+|_name (optional)|Existing company name to modify / rename|
+|mailingName (optional)|Name used for mailing and printing|
+|address (optional)|Array of address lines|
+|country / state|Validate using `query-option-values` with `country-state`|
+|pincode / phoneNumber / email (optional)|Contact details|
+|booksFrom|Books beginning date in YYYY-MM-DD, which also sets the financial year start|
+|isInventory (optional)|Maintain accounts with inventory|
+|currencySymbol / currencyFormalName (optional)|Base currency. Both must be supplied together|
+|gstin / incomeTaxNumber (optional)|GST number and PAN of the company|
+
+**Output**
+JSON result returned by import operation (count of created / altered records).
+
+### stock-category-create-update
+Create or update stock category(ies), the parallel classification of stock items that cuts across stock groups.
+
+**Input**
+|Argument|Description|
+|--|--|
+|targetCompany (optional)|Company name (defaults to active company)|
+|masters|Array of objects with properties `name`, `_name` (optional), `parent` (optional)|
+
+**Output**
+JSON result returned by import operation (count of created / altered records).
+
+### voucher-type-create-update
+Create or update voucher type(s). Every voucher type is derived from one of the predefined types.
+
+**Input**
+|Argument|Description|
+|--|--|
+|targetCompany (optional)|Company name (defaults to active company)|
+|masters|Array of voucher type objects|
+
+Every object of `masters` supports:
+|Property|Description|
+|--|--|
+|name|Voucher type name, or the new name when renaming|
+|_name (optional)|Existing voucher type name to modify / rename|
+|parent|Predefined voucher type it derives from, e.g. `Sales`, `Payment`, `Stock Journal`|
+|numberingMethod (optional)|`Automatic`, `Automatic (Manual Override)`, `Manual`, `Multi-User Auto`|
+|isOptional / affectsStock / preventDuplicates (optional)|Behaviour flags|
+|useCommonNarration / narrationsAtLineLevel / printAfterSave (optional)|Behaviour flags|
+|prefix (optional)|Prefix applied to the voucher number like `INV/`|
+
+**Output**
+JSON result returned by import operation (count of created / altered records).
+
+### currency-create-update
+Create or update currency(ies) used for recording foreign currency transactions.
+
+**Input**
+|Argument|Description|
+|--|--|
+|targetCompany (optional)|Company name (defaults to active company)|
+|masters|Array of currency objects|
+
+Every object of `masters` supports:
+|Property|Description|
+|--|--|
+|name|Currency symbol like `$`, which is the identity of a currency in Tally|
+|_name (optional)|Existing currency symbol to modify / rename|
+|formalName (optional)|Formal name like `US Dollar`|
+|expandedSymbol (optional)|Symbol in words used while printing amount in words|
+|decimalSymbol (optional)|Name of the decimal portion like `Cents`|
+|decimalPlaces (optional)|0 to 4, default 2|
+|isSymbolSuffixed / hasSpaceBetweenAmount / showInMillions (optional)|Presentation flags|
+
+**Output**
+JSON result returned by import operation (count of created / altered records).
+
+### gst-classification-create-update
+Create or update GST classification(s), a reusable set of HSN / SAC and GST rate details applicable to many stock items and ledgers at once.
+
+**Input**
+|Argument|Description|
+|--|--|
+|targetCompany (optional)|Company name (defaults to active company)|
+|masters|Array of objects with `name`, `_name` (optional), `hsnCode` (optional), `hsnDescription` (optional), `typeOfSupply` (optional), `taxability` (optional) and `rate` (total GST rate, split internally into CGST, SGST and IGST)|
+
+**Output**
+JSON result returned by import operation (count of created / altered records).
+
+### budget-create-update
+Create or update budget(s) for a period, with closing balance targets against groups, ledgers and cost centres. Debit is negative and credit is positive, so an expense target is a negative amount. At least one of the three target arrays must be supplied.
+
+**Input**
+|Argument|Description|
+|--|--|
+|targetCompany (optional)|Company name (defaults to active company)|
+|masters|Array of budget objects|
+
+Every object of `masters` supports:
+|Property|Description|
+|--|--|
+|name|Budget name, or the new name when renaming|
+|_name (optional)|Existing budget name to modify / rename|
+|parent (optional)|Parent budget under which this budget is nested|
+|fromDate / toDate|Budget period in YYYY-MM-DD|
+|groupBudgets (optional)|Array of `name`, `amount` and optional `isNettBalance`|
+|ledgerBudgets (optional)|Array of `name` and `amount`|
+|costCentreBudgets (optional)|Array of `name` and `amount`|
+
+**Output**
+JSON result returned by import operation (count of created / altered records).
+
+### pay-head-create-update
+Create or update payroll pay head(s), the earning, deduction or contribution components used while processing salary. A pay head is internally a ledger, so it also shows up in `list-master` with collection as `ledger`.
+
+**Input**
+|Argument|Description|
+|--|--|
+|targetCompany (optional)|Company name (defaults to active company)|
+|masters|Array of pay head objects|
+
+Every object of `masters` supports:
+|Property|Description|
+|--|--|
+|name|Pay head name, or the new name when renaming|
+|_name (optional)|Existing pay head name to modify / rename|
+|parent|Group under which the pay head is nested|
+|payHeadType|Nature of the pay head, e.g. `Earnings for Employees`, `Deductions from Employees`, `Bonus`, `Gratuity`|
+|isDebit|`true` when the pay head is an expense to the company, `false` when it is a liability|
+|payslipName (optional)|Name printed on the payslip|
+|calculationType (optional)|`On Attendance`, `As Computed Value`, `Flat Rate`, `On Production`, `As User Defined Value`|
+|calculationPeriod (optional)|`Days`, `Weeks`, `Months`, `Fortnights`|
+|attendanceType (optional)|Attendance or production type it is calculated on|
+|appropriateFor (optional)|Statutory pay type this pay head is appropriated for|
+|roundingMethod / roundingLimit (optional)|Rounding applied on the computed amount|
+|isBillWise (optional)|Maintain bill wise details, typically for loans and advances|
+
+**Output**
+JSON result returned by import operation (count of created / altered records).
+
+### employee-create-update
+Create or update payroll employee(s) or employee group(s). Tally stores an employee as a cost centre flagged for payroll, so employees also show up in `list-master` with collection as `costcentre`.
+
+**Input**
+|Argument|Description|
+|--|--|
+|targetCompany (optional)|Company name (defaults to active company)|
+|masters|Array of employee objects|
+
+Every object of `masters` supports:
+|Property|Description|
+|--|--|
+|name|Employee or employee group name, or the new name when renaming|
+|_name (optional)|Existing employee name to modify / rename|
+|isGroup (optional)|`true` creates an employee group instead of an employee|
+|category (optional)|Cost category, default `Primary Cost Category`|
+|parent (optional)|Employee group under which the employee is nested|
+|dateOfJoining|Mandatory for an employee, in YYYY-MM-DD|
+|dateOfRelease (optional)|Date of resignation or release|
+|employeeNumber / designation / functionName / location (optional)|Employment details|
+|gender / dateOfBirth / mobileNumber / email / panNumber (optional)|Personal details|
+|bankDetails (optional)|`bankName`, `accountNumber` and `ifscCode` used for salary payment|
+
+**Output**
+JSON result returned by import operation (count of created / altered records).
+
+### attendance-type-create-update
+Create or update payroll attendance, leave or production type(s) like Present, Absent, Overtime or Piece Production.
+
+**Input**
+|Argument|Description|
+|--|--|
+|targetCompany (optional)|Company name (defaults to active company)|
+|masters|Array of attendance type objects|
+
+Every object of `masters` supports:
+|Property|Description|
+|--|--|
+|name|Attendance type name, or the new name when renaming|
+|_name (optional)|Existing attendance type name to modify / rename|
+|parent (optional)|Parent attendance type under which this one is nested|
+|attendanceType|`Attendance/Leave with Pay`, `Leave without Pay` or `User Defined`|
+|period (optional)|`Days`, `Weeks`, `Months`, `Fortnights`. Not applicable for `User Defined`|
+|productionType / unit|Both mandatory when `attendanceType` is `User Defined`|
+
+**Output**
+JSON result returned by import operation (count of created / altered records).
 
 ### set-company
 Sets active company context in Tally Prime.

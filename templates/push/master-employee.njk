@@ -1,0 +1,77 @@
+<ENVELOPE>
+    <HEADER>
+        <TALLYREQUEST>Import Data</TALLYREQUEST>
+    </HEADER>
+    <BODY>
+        <IMPORTDATA>
+            <REQUESTDESC>
+                <REPORTNAME>All Masters</REPORTNAME>
+                <STATICVARIABLES>
+                    {% if targetCompany %}
+                    <SVCURRENTCOMPANY>{{ targetCompany | escape }}</SVCURRENTCOMPANY>
+                    {% endif %}
+                </STATICVARIABLES>
+            </REQUESTDESC>
+            <REQUESTDATA>
+                {% for master in masters %}
+                <TALLYMESSAGE>
+                    <COSTCENTRE NAME="{{ (master._name or master.name) | escape }}" ACTION="Create">
+                        <LANGUAGENAME.LIST>
+                            <NAME.LIST>
+                                <NAME>{{ master.name | escape }}</NAME>
+                            </NAME.LIST>
+                        </LANGUAGENAME.LIST>
+                        <CATEGORY>{{ (master.category or "Primary Cost Category") | escape }}</CATEGORY>
+                        {% if master.parent %}
+                        <PARENT>{{ master.parent | escape }}</PARENT>
+                        {% endif %}
+                        <FORPAYROLL>Yes</FORPAYROLL>
+                        <ISEMPLOYEEGROUP>{{ "Yes" if master.isGroup else "No" }}</ISEMPLOYEEGROUP>
+                        {% if not master.isGroup %}
+                        <EMPLOYEEDETAILS.LIST>
+                            <APPLICABLEFROM>{{ master.dateOfJoining | formatDate("yyyyMMdd") }}</APPLICABLEFROM>
+                            <DATEOFJOINING>{{ master.dateOfJoining | formatDate("yyyyMMdd") }}</DATEOFJOINING>
+                            {% if master.dateOfRelease %}
+                            <DATEOFRELEASE>{{ master.dateOfRelease | formatDate("yyyyMMdd") }}</DATEOFRELEASE>
+                            {% endif %}
+                            {% if master.employeeNumber != undefined %}
+                            <EMPLOYEENUMBER>{{ master.employeeNumber | escape }}</EMPLOYEENUMBER>
+                            {% endif %}
+                            {% if master.designation != undefined %}
+                            <DESIGNATION>{{ master.designation | escape }}</DESIGNATION>
+                            {% endif %}
+                            {% if master.functionName != undefined %}
+                            <FUNCTIONNAME>{{ master.functionName | escape }}</FUNCTIONNAME>
+                            {% endif %}
+                            {% if master.location != undefined %}
+                            <LOCATION>{{ master.location | escape }}</LOCATION>
+                            {% endif %}
+                            {% if master.gender != undefined %}
+                            <GENDER>{{ master.gender | escape }}</GENDER>
+                            {% endif %}
+                            {% if master.dateOfBirth %}
+                            <DATEOFBIRTH>{{ master.dateOfBirth | formatDate("yyyyMMdd") }}</DATEOFBIRTH>
+                            {% endif %}
+                            {% if master.mobileNumber != undefined %}
+                            <MOBILENO>{{ master.mobileNumber | escape }}</MOBILENO>
+                            {% endif %}
+                            {% if master.email != undefined %}
+                            <EMAILID>{{ master.email | escape }}</EMAILID>
+                            {% endif %}
+                            {% if master.panNumber != undefined %}
+                            <INCOMETAXNUMBER>{{ master.panNumber | escape }}</INCOMETAXNUMBER>
+                            {% endif %}
+                            {% if master.bankDetails %}
+                            <BANKNAME>{{ master.bankDetails.bankName | escape }}</BANKNAME>
+                            <BANKACCOUNTNUMBER>{{ master.bankDetails.accountNumber | escape }}</BANKACCOUNTNUMBER>
+                            <IFSCODE>{{ master.bankDetails.ifscCode | escape }}</IFSCODE>
+                            {% endif %}
+                        </EMPLOYEEDETAILS.LIST>
+                        {% endif %}
+                    </COSTCENTRE>
+                </TALLYMESSAGE>
+                {% endfor %}
+            </REQUESTDATA>
+        </IMPORTDATA>
+    </BODY>
+</ENVELOPE>

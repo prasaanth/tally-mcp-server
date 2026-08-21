@@ -1,3 +1,29 @@
+{% macro inventoryEntry(item) %}
+<STOCKITEMNAME>{{ item.stockItemName | escape }}</STOCKITEMNAME>
+<ISDEEMEDPOSITIVE>{{ "Yes" if item.amount < 0 else "No" }}</ISDEEMEDPOSITIVE>
+{% if item.rate != undefined %}
+<RATE>{{ item.rate }}{% if item.unit %}/{{ item.unit | escape }}{% endif %}</RATE>
+{% endif %}
+<AMOUNT>{{ item.amount }}</AMOUNT>
+<ACTUALQTY>{{ item.quantity }}{% if item.unit %} {{ item.unit | escape }}{% endif %}</ACTUALQTY>
+<BILLEDQTY>{{ item.quantity }}{% if item.unit %} {{ item.unit | escape }}{% endif %}</BILLEDQTY>
+{% if item.godownName or item.batchName %}
+<BATCHALLOCATIONS.LIST>
+<GODOWNNAME>{{ (item.godownName or "Main Location") | escape }}</GODOWNNAME>
+<BATCHNAME>{{ (item.batchName or "Primary Batch") | escape }}</BATCHNAME>
+<AMOUNT>{{ item.amount }}</AMOUNT>
+<ACTUALQTY>{{ item.quantity }}{% if item.unit %} {{ item.unit | escape }}{% endif %}</ACTUALQTY>
+<BILLEDQTY>{{ item.quantity }}{% if item.unit %} {{ item.unit | escape }}{% endif %}</BILLEDQTY>
+</BATCHALLOCATIONS.LIST>
+{% endif %}
+{% if item.accountingLedger %}
+<ACCOUNTINGALLOCATIONS.LIST>
+<LEDGERNAME>{{ item.accountingLedger | escape }}</LEDGERNAME>
+<ISDEEMEDPOSITIVE>{{ "Yes" if item.amount < 0 else "No" }}</ISDEEMEDPOSITIVE>
+<AMOUNT>{{ item.amount }}</AMOUNT>
+</ACCOUNTINGALLOCATIONS.LIST>
+{% endif %}
+{% endmacro %}
 <ENVELOPE>
     <HEADER>
         <TALLYREQUEST>Import Data</TALLYREQUEST>
@@ -68,32 +94,13 @@
                         </ALLLEDGERENTRIES.LIST>
                         {% endfor %}
                         {% for item in voucher.inventoryEntries %}
-                        <ALLINVENTORYENTRIES.LIST>
-                            <STOCKITEMNAME>{{ item.stockItemName | escape }}</STOCKITEMNAME>
-                            <ISDEEMEDPOSITIVE>{{ "Yes" if item.amount < 0 else "No" }}</ISDEEMEDPOSITIVE>
-                            {% if item.rate != undefined %}
-                            <RATE>{{ item.rate }}{% if item.unit %}/{{ item.unit | escape }}{% endif %}</RATE>
-                            {% endif %}
-                            <AMOUNT>{{ item.amount }}</AMOUNT>
-                            <ACTUALQTY>{{ item.quantity }}{% if item.unit %} {{ item.unit | escape }}{% endif %}</ACTUALQTY>
-                            <BILLEDQTY>{{ item.quantity }}{% if item.unit %} {{ item.unit | escape }}{% endif %}</BILLEDQTY>
-                            {% if item.godownName or item.batchName %}
-                            <BATCHALLOCATIONS.LIST>
-                                <GODOWNNAME>{{ (item.godownName or "Main Location") | escape }}</GODOWNNAME>
-                                <BATCHNAME>{{ (item.batchName or "Primary Batch") | escape }}</BATCHNAME>
-                                <AMOUNT>{{ item.amount }}</AMOUNT>
-                                <ACTUALQTY>{{ item.quantity }}{% if item.unit %} {{ item.unit | escape }}{% endif %}</ACTUALQTY>
-                                <BILLEDQTY>{{ item.quantity }}{% if item.unit %} {{ item.unit | escape }}{% endif %}</BILLEDQTY>
-                            </BATCHALLOCATIONS.LIST>
-                            {% endif %}
-                            {% if item.accountingLedger %}
-                            <ACCOUNTINGALLOCATIONS.LIST>
-                                <LEDGERNAME>{{ item.accountingLedger | escape }}</LEDGERNAME>
-                                <ISDEEMEDPOSITIVE>{{ "Yes" if item.amount < 0 else "No" }}</ISDEEMEDPOSITIVE>
-                                <AMOUNT>{{ item.amount }}</AMOUNT>
-                            </ACCOUNTINGALLOCATIONS.LIST>
-                            {% endif %}
-                        </ALLINVENTORYENTRIES.LIST>
+                        <ALLINVENTORYENTRIES.LIST>{{ inventoryEntry(item) }}</ALLINVENTORYENTRIES.LIST>
+                        {% endfor %}
+                        {% for item in voucher.sourceEntries %}
+                        <INVENTORYENTRIESOUT.LIST>{{ inventoryEntry(item) }}</INVENTORYENTRIESOUT.LIST>
+                        {% endfor %}
+                        {% for item in voucher.destinationEntries %}
+                        <INVENTORYENTRIESIN.LIST>{{ inventoryEntry(item) }}</INVENTORYENTRIESIN.LIST>
                         {% endfor %}
                     </VOUCHER>
                 </TALLYMESSAGE>

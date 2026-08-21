@@ -1,0 +1,54 @@
+<ENVELOPE>
+    <HEADER>
+        <TALLYREQUEST>Import Data</TALLYREQUEST>
+    </HEADER>
+    <BODY>
+        <IMPORTDATA>
+            <REQUESTDESC>
+                <REPORTNAME>All Masters</REPORTNAME>
+                <STATICVARIABLES>
+                    {% if targetCompany %}
+                    <SVCURRENTCOMPANY>{{ targetCompany | escape }}</SVCURRENTCOMPANY>
+                    {% endif %}
+                </STATICVARIABLES>
+            </REQUESTDESC>
+            <REQUESTDATA>
+                {% for master in masters %}
+                <TALLYMESSAGE>
+                    <BUDGET NAME="{{ (master._name or master.name) | escape }}" ACTION="Create">
+                        <LANGUAGENAME.LIST>
+                            <NAME.LIST>
+                                <NAME>{{ master.name | escape }}</NAME>
+                            </NAME.LIST>
+                        </LANGUAGENAME.LIST>
+                        {% if master.parent %}
+                        <PARENT>{{ master.parent | escape }}</PARENT>
+                        {% endif %}
+                        <BUDGETPERIODFROM>{{ master.fromDate | formatDate("yyyyMMdd") }}</BUDGETPERIODFROM>
+                        <BUDGETPERIODTO>{{ master.toDate | formatDate("yyyyMMdd") }}</BUDGETPERIODTO>
+                        {% for allocation in master.groupBudgets %}
+                        <BUDGETGROUP.LIST>
+                            <GROUPNAME>{{ allocation.name | escape }}</GROUPNAME>
+                            <ISADDABLE>{{ "Yes" if allocation.isNettBalance else "No" }}</ISADDABLE>
+                            <CLBALANCE>{{ allocation.amount }}</CLBALANCE>
+                        </BUDGETGROUP.LIST>
+                        {% endfor %}
+                        {% for allocation in master.ledgerBudgets %}
+                        <BUDGETLEDGER.LIST>
+                            <LEDGERNAME>{{ allocation.name | escape }}</LEDGERNAME>
+                            <CLBALANCE>{{ allocation.amount }}</CLBALANCE>
+                        </BUDGETLEDGER.LIST>
+                        {% endfor %}
+                        {% for allocation in master.costCentreBudgets %}
+                        <BUDGETCOSTCENTRE.LIST>
+                            <COSTCENTRENAME>{{ allocation.name | escape }}</COSTCENTRENAME>
+                            <CLBALANCE>{{ allocation.amount }}</CLBALANCE>
+                        </BUDGETCOSTCENTRE.LIST>
+                        {% endfor %}
+                    </BUDGET>
+                </TALLYMESSAGE>
+                {% endfor %}
+            </REQUESTDATA>
+        </IMPORTDATA>
+    </BODY>
+</ENVELOPE>
